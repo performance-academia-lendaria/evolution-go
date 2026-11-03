@@ -101,6 +101,9 @@ func initializeWAVersion(ctx context.Context, cfg *config.Config, loadProxies fu
 }
 
 func selectWAVersion(cfg *config.Config, fetch func() (store.WAVersionContainer, error)) (store.WAVersionContainer, error) {
+	if cfg.WhatsappVersionInvalid {
+		return store.WAVersionContainer{}, fmt.Errorf("WHATSAPP_VERSION requires three positive uint32 components")
+	}
 	parts := [3]int{cfg.WhatsappVersionMajor, cfg.WhatsappVersionMinor, cfg.WhatsappVersionPatch}
 	if parts != [3]int{} {
 		for _, part := range parts {

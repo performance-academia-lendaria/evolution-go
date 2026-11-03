@@ -169,3 +169,63 @@ func resetWAVersionInitializationForTest() {
 	waVersionInitialization.initialized = false
 	waVersionInitialization.ready = make(chan struct{})
 }
+
+func TestMalformedManualVersionDoesNotFallBackToWeb(t *testing.T) {
+	t.Setenv("POSTGRES_USERS_DB", "postgres://test:test@localhost/test")
+	t.Setenv("DATABASE_SAVE_MESSAGES", "false")
+	t.Setenv("GLOBAL_API_KEY", "test-key")
+	t.Setenv("MINIO_ENABLED", "false")
+	t.Setenv("AMQP_URL", "")
+	for _, tc := range []struct {
+		name, major, minor, patch string
+	}{
+		{"non-numeric", "abc", "def", "ghi"},
+		{"overflow", "18446744073709551616", "18446744073709551616", "18446744073709551616"},
+		{"zeros", "0", "0", "0"},
+		{"partial", "2", "3000", ""},
+		{"negative", "2", "3000", "-1"},
+		{"outside-uint32", "2", "3000", "4294967296"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("WHATSAPP_VERSION_MAJOR", tc.major)
+			t.Setenv("WHATSAPP_VERSION_MINOR", tc.minor)
+			t.Setenv("WHATSAPP_VERSION_PATCH", tc.patch)
+			cfg := config.Load()
+			called := false
+			_, err := selectWAVersion(cfg, func() (store.WAVersionContainer, error) {
+				called = true
+				return store.WAVersionContainer{2, 3000, 1052878631}, nil
+			})
+			if err == nil || called {
+				t.Fatalf("invalid manual settings must fail without fetching a web version")
+			}
+		})
+	}
+}
+
+func TestManualAndAutomaticVersionsFromEnvironment(t *testing.T) {
+	t.Setenv("POSTGRES_USERS_DB", "postgres://test:test@localhost/test")
+	t.Setenv("DATABASE_SAVE_MESSAGES", "false")
+	t.Setenv("GLOBAL_API_KEY", "test-key")
+	t.Setenv("MINIO_ENABLED", "false")
+	t.Setenv("AMQP_URL", "")
+	for _, tc := range []struct {
+		name, major, minor, patch string
+		wantFetch                 bool
+	}{
+		{"manual", "2", "3000", "1052878631", false},
+		{"automatic", "", "", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("WHATSAPP_VERSION_MAJOR", tc.major)
+			t.Setenv("WHATSAPP_VERSION_MINOR", tc.minor)
+			t.Setenv("WHATSAPP_VERSION_PATCH", tc.patch)
+			called := false
+			want := store.WAVersionContainer{2, 3000, 1052878631}
+			got, err := selectWAVersion(config.Load(), func() (store.WAVersionContainer, error) { called = true; return want, nil })
+			if err != nil || got != want || called != tc.wantFetch {
+				t.Fatalf("unexpected version selection: got %v, err %v, fetched %v", got, err, called)
+			}
+		})
+	}
+}

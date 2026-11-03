@@ -5,7 +5,7 @@
 Primeira versão própria da Academia Lendária, baseada no Evolution Go 0.7.2.
 
 - Corrige a versão do WhatsApp enviada no handshake para geração de QR Code.
-- Repete a descoberta da versão em caso de falha temporária, com suporte a proxies; novas conexões recebem HTTP 503 enquanto a versão estiver indisponível.
+- Repete a descoberta da versão em caso de falha temporária, com suporte a proxies; novas conexões recebem HTTP 503 enquanto a versão estiver indisponível. Configurações manuais inválidas são rejeitadas em vez de ignoradas.
 - Documenta o versionamento do fork e remove a publicação automática na imagem oficial.
 
 ## v0.7.2
