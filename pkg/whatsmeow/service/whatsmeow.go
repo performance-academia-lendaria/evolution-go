@@ -303,6 +303,13 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		}
 	}
 
+	// whatsmeow's version and registration state are globals. Never start a
+	// client on a failed lookup: a later attempt may initialize them safely.
+	if err := InitializeWAVersion(w.config); err != nil {
+		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] WhatsApp version unavailable; client not started: %v", cd.Instance.Id, err)
+		return
+	}
+
 	var container *sqlstore.Container
 
 	if w.config.WaDebug != "" {

@@ -3,7 +3,11 @@ package whatsmeow_service
 import (
 	"bytes"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/evolution-foundation/evolution-go/pkg/config"
@@ -50,7 +54,12 @@ func TestSelectWAVersion(t *testing.T) {
 func TestHandshakeVersionAndConcurrentDeviceNames(t *testing.T) {
 	oldVersion := store.GetWAVersion()
 	oldProps := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
-	t.Cleanup(func() { store.SetWAVersion(oldVersion); store.DeviceProps = oldProps })
+	waVersionInitialization.initialized = false
+	t.Cleanup(func() {
+		store.SetWAVersion(oldVersion)
+		store.DeviceProps = oldProps
+		waVersionInitialization.initialized = false
+	})
 	version := store.WAVersionContainer{2, 3000, 1052878631}
 	if err := InitializeWAVersion(&config.Config{WhatsappVersionMajor: int(version[0]), WhatsappVersionMinor: int(version[1]), WhatsappVersionPatch: int(version[2])}); err != nil {
 		t.Fatal(err)
@@ -99,5 +108,58 @@ func TestRevisionPattern(t *testing.T) {
 		if len(match) != 2 || match[1] != "1052878631" {
 			t.Fatalf("no revision in %q", value)
 		}
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return fn(req) }
+
+func TestVersionInitializationRetriesAfterLookupFailure(t *testing.T) {
+	oldVersion := store.GetWAVersion()
+	oldProps := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
+	oldTransport := http.DefaultTransport
+	waVersionInitialization.initialized = false
+	t.Cleanup(func() {
+		store.SetWAVersion(oldVersion)
+		store.DeviceProps = oldProps
+		http.DefaultTransport = oldTransport
+		waVersionInitialization.initialized = false
+	})
+	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_UNKNOWN.Enum()
+	before := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
+	var calls atomic.Int32
+	http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		if calls.Add(1) == 1 {
+			return nil, errors.New("temporary failure")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"client_revision":1052878631}`)), Header: make(http.Header)}, nil
+	})
+	if err := InitializeWAVersion(&config.Config{}); err == nil {
+		t.Fatal("expected lookup failure")
+	}
+	if !proto.Equal(before, store.DeviceProps) || store.GetWAVersion() != oldVersion {
+		t.Fatal("failed initialization modified whatsmeow state")
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := InitializeWAVersion(&config.Config{}); err != nil {
+				t.Errorf("retry failed: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	want := store.WAVersionContainer{2, 3000, 1052878631}
+	if store.GetWAVersion() != want {
+		t.Fatalf("retry did not apply fetched version")
+	}
+	if err := InitializeWAVersion(&config.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected version to be frozen after success, got %d lookups", calls.Load())
 	}
 }

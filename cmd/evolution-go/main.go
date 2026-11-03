@@ -344,7 +344,7 @@ func main() {
 
 	// Initialize whatsmeow's process-wide handshake state before starting any clients.
 	if err := whatsmeow_service.InitializeWAVersion(cfg); err != nil {
-		logger.LogWarn("WhatsApp version initialization failed; using library default: %v", err)
+		logger.LogWarn("WhatsApp version initialization failed; client starts will retry: %v", err)
 	}
 
 	startTime := time.Now()

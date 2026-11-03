@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/evolution-foundation/evolution-go/pkg/config"
@@ -18,12 +19,24 @@ import (
 
 var revisionPattern = regexp.MustCompile(`(?:["']client_revision["']|\\"client_revision\\"|client_revision)\s*:\s*(\d+)`)
 
-// InitializeWAVersion must run once, before any whatsmeow clients or goroutines.
-// The library's version, registration hash and payload are process-wide globals.
+// waVersionInitialization protects initialization until the first successful
+// lookup. No client may start until it succeeds; afterwards globals are immutable.
+var waVersionInitialization struct {
+	mu          sync.Mutex
+	initialized bool
+}
+
+// InitializeWAVersion retries failed lookups but never changes the shared
+// whatsmeow state after the first successful initialization.
 func InitializeWAVersion(cfg *config.Config) error {
+	waVersionInitialization.mu.Lock()
+	defer waVersionInitialization.mu.Unlock()
+	if waVersionInitialization.initialized {
+		return nil
+	}
 	version, err := selectWAVersion(cfg, fetchWhatsAppWebVersion)
 	if err != nil {
-		version = store.GetWAVersion()
+		return err
 	}
 	store.SetWAVersion(version)
 	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
@@ -31,8 +44,9 @@ func InitializeWAVersion(cfg *config.Config) error {
 	store.DeviceProps.Version.Primary = proto.Uint32(version[0])
 	store.DeviceProps.Version.Secondary = proto.Uint32(version[1])
 	store.DeviceProps.Version.Tertiary = proto.Uint32(version[2])
+	waVersionInitialization.initialized = true
 	logger.LogInfo("WhatsApp handshake version: %s (fixed until process restart)", version.String())
-	return err
+	return nil
 }
 
 func selectWAVersion(cfg *config.Config, fetch func() (store.WAVersionContainer, error)) (store.WAVersionContainer, error) {
