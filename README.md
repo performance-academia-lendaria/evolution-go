@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/evolution-foundation/evolution-go/releases/latest"><img src="https://img.shields.io/github/v/release/evolution-foundation/evolution-go?include_prereleases&label=version&color=00ffa7" alt="Latest version" /></a>
+  <a href="https://github.com/performance-academia-lendaria/evolution-go/releases"><img src="https://img.shields.io/github/v/release/performance-academia-lendaria/evolution-go?include_prereleases&label=fork&color=00ffa7" alt="Fork releases" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0" /></a>
   <a href="https://docs.evolutionfoundation.com.br"><img src="https://img.shields.io/badge/Docs-evolutionfoundation.com.br-00ffa7" alt="Documentation" /></a>
   <a href="https://evolutionfoundation.com.br/community"><img src="https://img.shields.io/badge/Community-Join%20us-white" alt="Community" /></a>
-  <a href="https://hub.docker.com/r/evoapicloud/evolution-go"><img src="https://img.shields.io/badge/Docker-evoapicloud-blue" alt="Docker image" /></a>
+  <img src="https://img.shields.io/badge/Docker-registry%20a%20definir-lightgrey" alt="Fork registry not configured" />
 </p>
 
 <p align="center">
@@ -27,6 +27,8 @@
 
 
 ---
+
+> **Fork da Academia Lendária:** a versão própria está no arquivo [VERSION](./VERSION). Consulte a [política de versionamento e publicação](./docs/wiki/desenvolvimento/versionamento-fork.md) antes de criar uma release ou imagem. Referências à imagem oficial abaixo são históricas e não são destinos de publicação deste fork.
 
 ## About
 
@@ -56,7 +58,7 @@ Evolution Go is one of the messaging engines maintained by Evolution Foundation.
 ### Docker (recommended)
 
 ```bash
-git clone https://github.com/evolution-foundation/evolution-go.git
+git clone https://github.com/performance-academia-lendaria/evolution-go.git
 cd evolution-go
 make docker-build
 make docker-run
@@ -65,7 +67,7 @@ make docker-run
 ### Local development
 
 ```bash
-git clone https://github.com/evolution-foundation/evolution-go.git
+git clone https://github.com/performance-academia-lendaria/evolution-go.git
 cd evolution-go
 
 # Setup, configure and run
