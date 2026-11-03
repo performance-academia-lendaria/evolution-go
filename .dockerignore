@@ -9,6 +9,7 @@ docs/wiki/
 
 # Logs
 logs/
+.code-review-log/
 
 # IDE
 .vscode/
