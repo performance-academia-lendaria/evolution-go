@@ -2,16 +2,19 @@ package whatsmeow_service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/evolution-foundation/evolution-go/pkg/config"
+	"github.com/evolution-foundation/evolution-go/pkg/utils"
 	"github.com/gomessguii/logger"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waWa6"
@@ -43,16 +46,16 @@ func WAVersionReady() bool {
 }
 
 // RetryWAVersionInitialization retries in the background until successful or cancelled.
-func RetryWAVersionInitialization(ctx context.Context, cfg *config.Config) {
-	retryWAVersionInitialization(ctx, cfg, 10*time.Second)
+func RetryWAVersionInitialization(ctx context.Context, cfg *config.Config, loadProxies func(context.Context) ([]string, error)) {
+	retryWAVersionInitialization(ctx, cfg, loadProxies, 10*time.Second)
 }
 
-func retryWAVersionInitialization(ctx context.Context, cfg *config.Config, interval time.Duration) {
+func retryWAVersionInitialization(ctx context.Context, cfg *config.Config, loadProxies func(context.Context) ([]string, error), interval time.Duration) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := InitializeWAVersion(cfg); err == nil {
+		if err := initializeWAVersion(ctx, cfg, loadProxies); err == nil {
 			return
 		} else {
 			logger.LogWarn("WhatsApp version unavailable; retrying: %v", err)
@@ -70,12 +73,18 @@ func retryWAVersionInitialization(ctx context.Context, cfg *config.Config, inter
 // InitializeWAVersion retries failed lookups but never changes the shared
 // whatsmeow state after the first successful initialization.
 func InitializeWAVersion(cfg *config.Config) error {
+	return initializeWAVersion(context.Background(), cfg, nil)
+}
+
+func initializeWAVersion(ctx context.Context, cfg *config.Config, loadProxies func(context.Context) ([]string, error)) error {
 	waVersionInitialization.mu.Lock()
 	defer waVersionInitialization.mu.Unlock()
 	if waVersionInitialization.initialized {
 		return nil
 	}
-	version, err := selectWAVersion(cfg, fetchWhatsAppWebVersion)
+	version, err := selectWAVersion(cfg, func() (store.WAVersionContainer, error) {
+		return fetchWhatsAppWebVersion(ctx, cfg, loadProxies)
+	})
 	if err != nil {
 		return err
 	}
@@ -104,19 +113,110 @@ func selectWAVersion(cfg *config.Config, fetch func() (store.WAVersionContainer,
 	return fetch()
 }
 
-func fetchWhatsAppWebVersion() (store.WAVersionContainer, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("https://web.whatsapp.com/sw.js")
+// fetchWhatsAppWebVersion first respects normal HTTP proxy settings, then tries
+// the application's global and saved per-instance proxies. Proxy credentials
+// never appear in returned errors or logs.
+func fetchWhatsAppWebVersion(ctx context.Context, cfg *config.Config, loadProxies func(context.Context) ([]string, error)) (store.WAVersionContainer, error) {
+	if version, err := fetchVersionWithClient(ctx, &http.Client{Timeout: 10 * time.Second}); err == nil {
+		return version, nil
+	}
+	seen := make(map[string]bool)
+	tryProxies := func(addresses []string) (store.WAVersionContainer, bool) {
+		for _, address := range addresses {
+			if seen[address] {
+				continue
+			}
+			seen[address] = true
+			proxyURL, err := url.Parse(address)
+			if err != nil {
+				continue
+			}
+			transport := &http.Transport{}
+			if base, ok := http.DefaultTransport.(*http.Transport); ok {
+				transport = base.Clone()
+			}
+			transport.Proxy = http.ProxyURL(proxyURL)
+			client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
+			version, err := fetchVersionWithClient(ctx, client)
+			transport.CloseIdleConnections()
+			if err == nil {
+				return version, true
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+		return store.WAVersionContainer{}, false
+	}
+	if version, ok := tryProxies(whatsappVersionProxyAddresses(cfg, nil)); ok {
+		return version, nil
+	}
+	if loadProxies != nil && ctx.Err() == nil {
+		lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		proxies, err := loadProxies(lookupCtx)
+		cancel()
+		if err != nil {
+			logger.LogWarn("Could not load instance proxies for WhatsApp version lookup")
+		} else if version, ok := tryProxies(whatsappVersionProxyAddresses(cfg, proxies)); ok {
+			return version, nil
+		}
+	}
+	return store.WAVersionContainer{}, fmt.Errorf("WhatsApp Web version unavailable through direct access or configured proxies")
+}
+
+func whatsappVersionProxyAddresses(cfg *config.Config, rawProxies []string) []string {
+	global := ProxyConfig{Protocol: cfg.ProxyProtocol, Host: cfg.ProxyHost, Port: cfg.ProxyPort, Username: cfg.ProxyUsername, Password: cfg.ProxyPassword}
+	candidates := []ProxyConfig{global}
+	for _, raw := range rawProxies {
+		var p ProxyConfig
+		if json.Unmarshal([]byte(raw), &p) != nil {
+			continue
+		}
+		if p.Host == "" {
+			p.Host = global.Host
+		}
+		if p.Port == "" {
+			p.Port = global.Port
+		}
+		if p.Protocol == "" {
+			p.Protocol = global.Protocol
+		}
+		if p.Username == "" {
+			p.Username = global.Username
+		}
+		if p.Password == "" {
+			p.Password = global.Password
+		}
+		candidates = append(candidates, p)
+	}
+	seen := make(map[string]bool)
+	var addresses []string
+	for _, p := range candidates {
+		address, err := utils.BuildProxyAddress(p.Protocol, p.Host, p.Port, p.Username, p.Password)
+		if err == nil && !seen[address] {
+			seen[address] = true
+			addresses = append(addresses, address)
+		}
+	}
+	return addresses
+}
+
+func fetchVersionWithClient(ctx context.Context, client *http.Client) (store.WAVersionContainer, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://web.whatsapp.com/sw.js", nil)
 	if err != nil {
-		return store.WAVersionContainer{}, fmt.Errorf("fetch WhatsApp Web version: %w", err)
+		return store.WAVersionContainer{}, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return store.WAVersionContainer{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return store.WAVersionContainer{}, fmt.Errorf("fetch WhatsApp Web version: HTTP %d", resp.StatusCode)
+		return store.WAVersionContainer{}, fmt.Errorf("unexpected HTTP status")
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
-		return store.WAVersionContainer{}, fmt.Errorf("read WhatsApp Web version: %w", err)
+		return store.WAVersionContainer{}, err
 	}
 	matches := revisionPattern.FindSubmatch(body)
 	if len(matches) != 2 {

@@ -102,7 +102,7 @@ func TestBackgroundVersionRetryRecovers(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	done := make(chan struct{})
-	go func() { retryWAVersionInitialization(ctx, &config.Config{}, time.Millisecond); close(done) }()
+	go func() { retryWAVersionInitialization(ctx, &config.Config{}, nil, time.Millisecond); close(done) }()
 	select {
 	case <-waVersionInitialization.ready:
 	case <-ctx.Done():
@@ -111,5 +111,26 @@ func TestBackgroundVersionRetryRecovers(t *testing.T) {
 	<-done
 	if calls.Load() != 2 || store.GetWAVersion() != (store.WAVersionContainer{2, 3000, 1052878631}) {
 		t.Fatalf("retry did not recover using the fetched version; calls=%d", calls.Load())
+	}
+}
+
+func TestManualVersionDoesNotNeedProxyLookup(t *testing.T) {
+	oldVersion := store.GetWAVersion()
+	oldProps := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
+	resetWAVersionInitializationForTest()
+	t.Cleanup(func() {
+		store.SetWAVersion(oldVersion)
+		store.DeviceProps = oldProps
+		resetWAVersionInitializationForTest()
+	})
+	var calls atomic.Int32
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	retryWAVersionInitialization(ctx, &config.Config{WhatsappVersionMajor: 2, WhatsappVersionMinor: 3000, WhatsappVersionPatch: 1052878631}, func(context.Context) ([]string, error) {
+		calls.Add(1)
+		return nil, errors.New("database unavailable")
+	}, time.Millisecond)
+	if calls.Load() != 0 || !WAVersionReady() {
+		t.Fatalf("manual version should not depend on proxy lookup; calls=%d", calls.Load())
 	}
 }

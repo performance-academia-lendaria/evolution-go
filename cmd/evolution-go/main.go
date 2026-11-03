@@ -326,6 +326,13 @@ func initPostgresAuthDB(config *config.Config) (*sql.DB, error) {
 	return db, nil
 }
 
+// loadInstanceProxies reads the proxies already configured for WhatsApp clients.
+func loadInstanceProxies(ctx context.Context, db *gorm.DB) ([]string, error) {
+	var proxies []string
+	err := db.WithContext(ctx).Model(&instance_model.Instance{}).Distinct("proxy").Where("proxy <> ? AND proxy <> ?", "", "null").Pluck("proxy", &proxies).Error
+	return proxies, err
+}
+
 // @title Evolution GO
 // @version 1.0
 // @description Evolution GO - whatsmeow
@@ -345,7 +352,6 @@ func main() {
 	// Retry independently of API requests; no client starts before this succeeds.
 	versionCtx, versionCancel := context.WithCancel(context.Background())
 	defer versionCancel()
-	go whatsmeow_service.RetryWAVersionInitialization(versionCtx, cfg)
 
 	startTime := time.Now()
 
@@ -373,6 +379,11 @@ func main() {
 	}
 
 	migrate(db)
+
+	// Include instance-specific proxies without exposing their credentials in logs.
+	go whatsmeow_service.RetryWAVersionInitialization(versionCtx, cfg, func(ctx context.Context) ([]string, error) {
+		return loadInstanceProxies(ctx, db)
+	})
 
 	// Initialize core DB + license runtime
 	core.SetDB(db)
