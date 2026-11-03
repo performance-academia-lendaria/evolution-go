@@ -8,26 +8,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
-	"io"
 	"math/rand"
-	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/image/webp"
-	"google.golang.org/protobuf/proto"
 
 	_ "github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
-	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waWa6"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -68,12 +63,6 @@ type WhatsmeowService interface {
 	PasskeyCeremonyStore() *ceremony.Store
 	SubmitPasskeyResponse(instanceId string, resp *types.WebAuthnResponse) error
 	ConfirmPasskey(instanceId string) error
-}
-
-type clientVersion struct {
-	Major int
-	Minor int
-	Patch int
 }
 
 type whatsmeowService struct {
@@ -362,45 +351,8 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		}
 	}
 
-	var version clientVersion
-
-	platformID, ok := waCompanionReg.DeviceProps_PlatformType_value[strings.ToUpper("chrome")]
-	if ok {
-		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_PlatformType(platformID).Enum()
-	}
 	if cd.Instance.OsName == "" {
 		cd.Instance.OsName = utils.WhatsAppGetUserOS()
-	}
-
-	store.DeviceProps.Os = &cd.Instance.OsName
-	store.DeviceProps.RequireFullSync = proto.Bool(true)
-
-	if w.config.WhatsappVersionMajor != 0 && w.config.WhatsappVersionMinor != 0 && w.config.WhatsappVersionPatch != 0 {
-		w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Setting whatsapp version to %d.%d.%d", cd.Instance.Id, w.config.WhatsappVersionMajor, w.config.WhatsappVersionMinor, w.config.WhatsappVersionPatch)
-		version.Major = w.config.WhatsappVersionMajor
-		if err == nil {
-			store.DeviceProps.Version.Primary = proto.Uint32(uint32(version.Major))
-		}
-		version.Minor = w.config.WhatsappVersionMinor
-		if err == nil {
-			store.DeviceProps.Version.Secondary = proto.Uint32(uint32(version.Minor))
-		}
-		version.Patch = w.config.WhatsappVersionPatch
-		if err == nil {
-			store.DeviceProps.Version.Tertiary = proto.Uint32(uint32(version.Patch))
-		}
-	} else {
-		// Try to fetch version from WhatsApp Web
-		webVersion, err := fetchWhatsAppWebVersion()
-		if err != nil {
-			w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to fetch WhatsApp Web version: %v", cd.Instance.Id, err)
-		} else {
-			w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Setting whatsapp version from web to %d.%d.%d", cd.Instance.Id, webVersion.Major, webVersion.Minor, webVersion.Patch)
-			version = *webVersion
-			store.DeviceProps.Version.Primary = proto.Uint32(uint32(version.Major))
-			store.DeviceProps.Version.Secondary = proto.Uint32(uint32(version.Minor))
-			store.DeviceProps.Version.Tertiary = proto.Uint32(uint32(version.Patch))
-		}
 	}
 
 	// 🔒 FIX: Sempre criar logger, mesmo que WaDebug esteja vazio
@@ -411,6 +363,12 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 	}
 	clientLog := waLog.Stdout("Client", minLevel, true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
+	// The library's registration properties are global. Copy the payload and
+	// set the instance-specific name without mutating shared state.
+	osName := cd.Instance.OsName
+	client.GetClientPayload = func() *waWa6.ClientPayload {
+		return payloadWithDeviceOS(deviceStore.GetClientPayload(), osName)
+	}
 
 	w.clientPointer[cd.Instance.Id] = client
 
@@ -2601,75 +2559,6 @@ func (w *whatsmeowService) SendToGlobalQueues(eventType string, payload []byte, 
 			}
 		}
 	}
-}
-
-var (
-	cachedWebVersion   *clientVersion
-	cachedWebVersionAt time.Time
-	cachedWebVersionMu sync.Mutex
-	webVersionCacheTTL = 1 * time.Hour
-)
-
-func fetchWhatsAppWebVersion() (*clientVersion, error) {
-	cachedWebVersionMu.Lock()
-	defer cachedWebVersionMu.Unlock()
-
-	if cachedWebVersion != nil && time.Since(cachedWebVersionAt) < webVersionCacheTTL {
-		return cachedWebVersion, nil
-	}
-
-	resp, err := http.Get("https://web.whatsapp.com/sw.js")
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch WhatsApp Web version: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	content := string(body)
-
-	// Múltiplas estratégias para encontrar client_revision
-	patterns := []string{
-		`"client_revision":\s*(\d+)`,              // Formato direto
-		`\\"client_revision\\":\s*(\d+)`,          // Formato escaped
-		`client_revision\\?\\"?:[\s]*(\d+)`,       // Formato mais flexível
-		`["']client_revision["'][\s]*:[\s]*(\d+)`, // Com aspas variadas
-	}
-
-	for _, pattern := range patterns {
-		re := regexp.MustCompile(pattern)
-		matches := re.FindStringSubmatch(content)
-
-		if len(matches) >= 2 {
-			clientRevision, err := strconv.Atoi(matches[1])
-			if err != nil {
-				continue // Tenta próximo padrão
-			}
-
-			// Log qual padrão funcionou
-			if clientRevision > 0 {
-				cachedWebVersion = &clientVersion{
-					Major: 2,
-					Minor: 3000,
-					Patch: clientRevision,
-				}
-				cachedWebVersionAt = time.Now()
-				return cachedWebVersion, nil
-			}
-		}
-	}
-
-	// Se chegou aqui, nenhum padrão funcionou - log do conteúdo para debug
-	// Mostra apenas uma parte para não logar muito
-	previewLength := 500
-	if len(content) > previewLength {
-		content = content[:previewLength] + "..."
-	}
-
-	return nil, fmt.Errorf("could not find client revision in the fetched content. Content preview: %s", content)
 }
 
 func (w whatsmeowService) UpdateInstanceSettings(instanceId string) error {

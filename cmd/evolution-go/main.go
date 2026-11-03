@@ -342,6 +342,11 @@ func main() {
 
 	logger.LogInfo("Starting Evolution GO version %s", version)
 
+	// Initialize whatsmeow's process-wide handshake state before starting any clients.
+	if err := whatsmeow_service.InitializeWAVersion(cfg); err != nil {
+		logger.LogWarn("WhatsApp version initialization failed; using library default: %v", err)
+	}
+
 	startTime := time.Now()
 
 	db, err := cfg.CreateUsersDB()
