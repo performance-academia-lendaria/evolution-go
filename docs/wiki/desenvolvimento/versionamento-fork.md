@@ -9,7 +9,7 @@ Este repositório é um fork do Evolution Go. A Academia mantém seu código e s
         0.7.2                  0.1.0
 ```
 
-Exemplo inicial: **`0.7.2-0.1.0`**. A primeira parte identifica a versão estável do Evolution Go usada como base; a segunda é a versão das alterações mantidas pela Academia. Neste momento a base é a tag oficial `0.7.2`, commit `9337afc47e10b86cc896a6f432240e40fee95dd1`. O número proposto é um candidato ainda não publicado.
+Exemplo inicial: **`0.7.2-0.1.0`**. A primeira parte identifica a versão estável do Evolution Go usada como base; a segunda é a versão das alterações mantidas pela Academia. Neste momento a base é a tag oficial `0.7.2`, commit `9337afc47e10b86cc896a6f432240e40fee95dd1`. A versão `0.7.2-0.1.0` é uma candidata do fork; publicar uma imagem para teste não cria uma release Git nem autoriza implantação em produção.
 
 Este formato é um SemVer válido, mas tem uma consequência: para ferramentas SemVer, `0.1.0` é o identificador de **pré-lançamento de `0.7.2`**, e não uma segunda versão SemVer independente. Assim, `0.7.2-0.1.0` tem precedência menor que `0.7.2`; ferramentas e restrições de dependência podem ignorar pré-lançamentos. Informe a versão completa explicitamente ao selecionar a release ou imagem. A Academia usa os três números após o hífen como convenção própria de evolução do fork.
 
@@ -35,6 +35,6 @@ Use apenas números inteiros sem zeros à esquerda. O formato acima se aplica a 
 4. Ao preparar uma release aprovada, use a versão completa do arquivo para a tag Git e para a tag da imagem no registry **da Academia**. Registre também o commit e o digest da imagem. Não crie tags ou publique versões no projeto ou registry oficiais.
 5. Uma vez publicada, não substitua o conteúdo da mesma versão; para outra alteração, gere uma nova versão. Em produção, prefira a versão exata e o digest aprovado em vez de depender de `latest`.
 
-Este repositório ainda não tem um registry próprio configurado. A automação herdada que publicava em `evoapicloud/evolution-go` foi removida do fork; uma futura automação deve ser revisada e configurada para o destino da Academia antes de ser ativada. Alterar `VERSION` ou fazer build local não publica uma imagem nem cria uma release.
+O destino escolhido para as imagens do fork é o Docker Hub `tuanmedeiros/evolution-go`. A automação herdada que publicava em `evoapicloud/evolution-go` é removida nesta branch; uma futura automação deve ser revisada e apontar somente para o destino escolhido antes de ser ativada. Alterar `VERSION` ou fazer build local não publica uma imagem nem cria uma release.
 
 Referências: [Semantic Versioning 2.0.0](https://semver.org/lang/pt-BR/) e [referência de tags de imagem Docker](https://docs.docker.com/reference/cli/docker/image/tag/).

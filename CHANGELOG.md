@@ -1,6 +1,6 @@
 # Evolution GO - Changelog
 
-## 0.7.2-0.1.0 — Não publicado
+## 0.7.2-0.1.0 — Candidata, sem release Git
 
 Primeira versão própria da Academia Lendária, baseada no Evolution Go 0.7.2.
 

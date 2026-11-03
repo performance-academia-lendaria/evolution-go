@@ -15,7 +15,7 @@
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0" /></a>
   <a href="https://docs.evolutionfoundation.com.br"><img src="https://img.shields.io/badge/Docs-evolutionfoundation.com.br-00ffa7" alt="Documentation" /></a>
   <a href="https://evolutionfoundation.com.br/community"><img src="https://img.shields.io/badge/Community-Join%20us-white" alt="Community" /></a>
-  <img src="https://img.shields.io/badge/Docker-registry%20a%20definir-lightgrey" alt="Fork registry not configured" />
+  <a href="https://hub.docker.com/r/tuanmedeiros/evolution-go"><img src="https://img.shields.io/badge/Docker-tuanmedeiros%2Fevolution--go-blue" alt="Fork Docker repository" /></a>
 </p>
 
 <p align="center">
