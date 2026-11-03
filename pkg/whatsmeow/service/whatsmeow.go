@@ -161,6 +161,9 @@ type ProxyConfig struct {
 }
 
 func (w whatsmeowService) ReconnectClient(instanceId string) error {
+	if !WAVersionReady() {
+		return ErrWAVersionNotReady
+	}
 	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Starting reconnection process - simulating restart", instanceId)
 
 	// Passo 1: Limpar conexão existente se houver
@@ -303,10 +306,9 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		}
 	}
 
-	// whatsmeow's version and registration state are globals. Never start a
-	// client on a failed lookup: a later attempt may initialize them safely.
-	if err := InitializeWAVersion(w.config); err != nil {
-		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] WhatsApp version unavailable; client not started: %v", cd.Instance.Id, err)
+	// Global registration state becomes immutable before any client starts.
+	if !WAVersionReady() {
+		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] WhatsApp version unavailable; client not started", cd.Instance.Id)
 		return
 	}
 
@@ -2286,6 +2288,9 @@ func (w *whatsmeowService) sendToQueueOrWebhook(instance *instance_model.Instanc
 }
 
 func (w whatsmeowService) StartInstance(instanceId string) error {
+	if !WAVersionReady() {
+		return ErrWAVersionNotReady
+	}
 	instance, err := w.instanceRepository.GetInstanceByID(instanceId)
 	if err != nil {
 		return err
@@ -2375,6 +2380,8 @@ func (w whatsmeowService) StartInstance(instanceId string) error {
 }
 
 func (w whatsmeowService) ConnectOnStartup(clientName string) {
+	// A transient outage must not permanently skip previously connected instances.
+	<-waVersionInitialization.ready
 	w.loggerWrapper.GetLogger(clientName).LogInfo("Connecting all instances on startup")
 	var instances []*instance_model.Instance
 	var err error

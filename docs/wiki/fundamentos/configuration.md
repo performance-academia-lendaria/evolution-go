@@ -516,7 +516,7 @@ WHATSAPP_VERSION_PATCH=54
 
 Deixe as três variáveis sem configurar para buscar a versão do WhatsApp Web na inicialização. Para definir uma versão manual, configure os três componentes positivos; os valores acima são apenas exemplos. A versão é aplicada ao handshake e permanece fixa até o processo reiniciar.
 
-Se a busca falhar ou a configuração estiver incompleta, o serviço registra um aviso e não inicia clientes com uma versão desconhecida. Uma nova tentativa de iniciar cliente repete a busca; configuração manual incompleta precisa ser corrigida e o processo reiniciado. Atualizar somente o número de versão não substitui a atualização da biblioteca quando o protocolo mudar.
+Se a busca falhar, o serviço registra um aviso e repete a consulta em segundo plano; as instâncias configuradas para iniciar automaticamente aguardam a recuperação. Enquanto a versão não estiver disponível, a API rejeita novas conexões temporariamente. Configuração manual incompleta precisa ser corrigida e o processo reiniciado. Atualizar somente o número de versão não substitui a atualização da biblioteca quando o protocolo mudar.
 
 ---
 

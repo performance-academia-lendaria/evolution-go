@@ -54,11 +54,11 @@ func TestSelectWAVersion(t *testing.T) {
 func TestHandshakeVersionAndConcurrentDeviceNames(t *testing.T) {
 	oldVersion := store.GetWAVersion()
 	oldProps := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
-	waVersionInitialization.initialized = false
+	resetWAVersionInitializationForTest()
 	t.Cleanup(func() {
 		store.SetWAVersion(oldVersion)
 		store.DeviceProps = oldProps
-		waVersionInitialization.initialized = false
+		resetWAVersionInitializationForTest()
 	})
 	version := store.WAVersionContainer{2, 3000, 1052878631}
 	if err := InitializeWAVersion(&config.Config{WhatsappVersionMajor: int(version[0]), WhatsappVersionMinor: int(version[1]), WhatsappVersionPatch: int(version[2])}); err != nil {
@@ -119,12 +119,12 @@ func TestVersionInitializationRetriesAfterLookupFailure(t *testing.T) {
 	oldVersion := store.GetWAVersion()
 	oldProps := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
 	oldTransport := http.DefaultTransport
-	waVersionInitialization.initialized = false
+	resetWAVersionInitializationForTest()
 	t.Cleanup(func() {
 		store.SetWAVersion(oldVersion)
 		store.DeviceProps = oldProps
 		http.DefaultTransport = oldTransport
-		waVersionInitialization.initialized = false
+		resetWAVersionInitializationForTest()
 	})
 	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_UNKNOWN.Enum()
 	before := proto.Clone(store.DeviceProps).(*waCompanionReg.DeviceProps)
@@ -162,4 +162,10 @@ func TestVersionInitializationRetriesAfterLookupFailure(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Fatalf("expected version to be frozen after success, got %d lookups", calls.Load())
 	}
+}
+
+// Tests are sequential and wait for all client goroutines before resetting globals.
+func resetWAVersionInitializationForTest() {
+	waVersionInitialization.initialized = false
+	waVersionInitialization.ready = make(chan struct{})
 }

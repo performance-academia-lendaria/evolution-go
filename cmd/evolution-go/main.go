@@ -342,10 +342,10 @@ func main() {
 
 	logger.LogInfo("Starting Evolution GO version %s", version)
 
-	// Initialize whatsmeow's process-wide handshake state before starting any clients.
-	if err := whatsmeow_service.InitializeWAVersion(cfg); err != nil {
-		logger.LogWarn("WhatsApp version initialization failed; client starts will retry: %v", err)
-	}
+	// Retry independently of API requests; no client starts before this succeeds.
+	versionCtx, versionCancel := context.WithCancel(context.Background())
+	defer versionCancel()
+	go whatsmeow_service.RetryWAVersionInitialization(versionCtx, cfg)
 
 	startTime := time.Now()
 

@@ -1,6 +1,8 @@
 package whatsmeow_service
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,9 +23,48 @@ var revisionPattern = regexp.MustCompile(`(?:["']client_revision["']|\\"client_r
 
 // waVersionInitialization protects initialization until the first successful
 // lookup. No client may start until it succeeds; afterwards globals are immutable.
-var waVersionInitialization struct {
+var waVersionInitialization = struct {
 	mu          sync.Mutex
 	initialized bool
+	ready       chan struct{}
+}{ready: make(chan struct{})}
+
+// ErrWAVersionNotReady indicates that clients cannot safely start yet.
+var ErrWAVersionNotReady = errors.New("WhatsApp version is not ready; retry shortly")
+
+// WAVersionReady reports readiness without waiting for an in-flight lookup.
+func WAVersionReady() bool {
+	select {
+	case <-waVersionInitialization.ready:
+		return true
+	default:
+		return false
+	}
+}
+
+// RetryWAVersionInitialization retries in the background until successful or cancelled.
+func RetryWAVersionInitialization(ctx context.Context, cfg *config.Config) {
+	retryWAVersionInitialization(ctx, cfg, 10*time.Second)
+}
+
+func retryWAVersionInitialization(ctx context.Context, cfg *config.Config, interval time.Duration) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := InitializeWAVersion(cfg); err == nil {
+			return
+		} else {
+			logger.LogWarn("WhatsApp version unavailable; retrying: %v", err)
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 // InitializeWAVersion retries failed lookups but never changes the shared
@@ -45,6 +86,7 @@ func InitializeWAVersion(cfg *config.Config) error {
 	store.DeviceProps.Version.Secondary = proto.Uint32(version[1])
 	store.DeviceProps.Version.Tertiary = proto.Uint32(version[2])
 	waVersionInitialization.initialized = true
+	close(waVersionInitialization.ready)
 	logger.LogInfo("WhatsApp handshake version: %s (fixed until process restart)", version.String())
 	return nil
 }
