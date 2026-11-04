@@ -514,7 +514,9 @@ WHATSAPP_VERSION_MINOR=2412
 WHATSAPP_VERSION_PATCH=54
 ```
 
-**Recomendação**: Deixar não configurado para utilizar versão automática da biblioteca whatsmeow.
+Deixe as três variáveis sem configurar para buscar a versão do WhatsApp Web na inicialização. Para definir uma versão manual, configure os três componentes positivos; os valores acima são apenas exemplos. A versão é aplicada ao handshake e permanece fixa até o processo reiniciar.
+
+A consulta usa a configuração HTTP do ambiente e também tenta os proxies globais e por instância cadastrados. Se todas as tentativas falharem, o serviço registra um aviso e repete a consulta em segundo plano; as instâncias configuradas para iniciar automaticamente aguardam a recuperação. Enquanto a versão não estiver disponível, a API rejeita novas conexões temporariamente. Configuração manual incompleta, malformada, zerada ou fora do limite de `uint32` precisa ser corrigida e o processo reiniciado; ela não muda automaticamente para a busca na web. Atualizar somente o número de versão não substitui a atualização da biblioteca quando o protocolo mudar.
 
 ---
 

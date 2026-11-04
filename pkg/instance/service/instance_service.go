@@ -132,7 +132,7 @@ func (i *instances) ensureClientConnected(instanceId string) (*whatsmeow.Client,
 		err := i.whatsmeowService.StartInstance(instanceId)
 		if err != nil {
 			logger.LogError("[%s] Failed to start instance: %v", instanceId, err)
-			return nil, errors.New("no active session found")
+			return nil, fmt.Errorf("failed to start instance: %w", err)
 		}
 
 		logger.LogInfo("[%s] Instance started, waiting 2 seconds...", instanceId)
@@ -207,6 +207,9 @@ func (i instances) Create(data *CreateStruct) (*instance_model.Instance, error) 
 }
 
 func (i instances) Connect(data *ConnectStruct, instance *instance_model.Instance) (*instance_model.Instance, string, string, error) {
+	if !whatsmeow_service.WAVersionReady() {
+		return nil, "", "", whatsmeow_service.ErrWAVersionNotReady
+	}
 	var subscribedEvents []string
 
 	i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Processing subscribe events: %v", instance.Id, data.Subscribe)
@@ -697,6 +700,9 @@ func (i instances) RemoveProxy(id string) error {
 }
 
 func (i instances) ForceReconnect(instanceId string, number string) error {
+	if !whatsmeow_service.WAVersionReady() {
+		return whatsmeow_service.ErrWAVersionNotReady
+	}
 	if i.clientPointer[instanceId].IsConnected() && i.clientPointer[instanceId].IsLoggedIn() {
 		return fmt.Errorf("client already connected")
 	}

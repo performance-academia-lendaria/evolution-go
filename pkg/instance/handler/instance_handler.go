@@ -1,6 +1,7 @@
 package instance_handler
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	instance_service "github.com/evolution-foundation/evolution-go/pkg/instance/service"
 	"github.com/evolution-foundation/evolution-go/pkg/utils"
+	whatsmeow_service "github.com/evolution-foundation/evolution-go/pkg/whatsmeow/service"
 )
 
 type InstanceHandler interface {
@@ -135,7 +137,7 @@ func (i *instanceHandler) Connect(ctx *gin.Context) {
 
 	instance, jid, eventString, err := i.instanceService.Connect(data, instance)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -170,7 +172,7 @@ func (i *instanceHandler) Reconnect(ctx *gin.Context) {
 
 	err := i.instanceService.Reconnect(instance)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -197,7 +199,7 @@ func (i *instanceHandler) Disconnect(ctx *gin.Context) {
 
 	updateInstance, err := i.instanceService.Disconnect(instance)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -226,7 +228,7 @@ func (i *instanceHandler) Logout(ctx *gin.Context) {
 
 	updateInstance, err := i.instanceService.Logout(instance)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusBadRequest), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -282,7 +284,7 @@ func (i *instanceHandler) Qr(ctx *gin.Context) {
 
 	qrcode, err := i.instanceService.GetQr(instance)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusBadRequest), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -323,7 +325,7 @@ func (i *instanceHandler) Pair(ctx *gin.Context) {
 
 	pairingCode, err := i.instanceService.Pair(data, instance)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -524,7 +526,7 @@ func (i *instanceHandler) ForceReconnect(ctx *gin.Context) {
 
 	err = i.instanceService.ForceReconnect(instanceId, number)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(instanceErrorStatus(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -657,4 +659,12 @@ func (h *instanceHandler) UpdateAdvancedSettings(c *gin.Context) {
 
 func NewInstanceHandler(instanceService instance_service.InstanceService, config *config.Config) InstanceHandler {
 	return &instanceHandler{instanceService: instanceService, config: config}
+}
+
+// instanceErrorStatus keeps a temporary version outage distinguishable from a bad request.
+func instanceErrorStatus(err error, fallback int) int {
+	if errors.Is(err, whatsmeow_service.ErrWAVersionNotReady) {
+		return http.StatusServiceUnavailable
+	}
+	return fallback
 }

@@ -68,6 +68,8 @@ type Config struct {
 	LogMaxAge     int
 	LogDirectory  string
 	LogCompress   bool
+
+	WhatsappVersionInvalid bool
 }
 
 // EnsureDBExists connects to postgres (without the target database) and creates it if it doesn't exist.
@@ -280,19 +282,21 @@ func Load() *Config {
 		checkUserExists = "true"
 	}
 
-	// Convertendo para int com valores padrão caso estejam vazios
-	major := 0
-	if whatsappVersionMajor != "" {
-		major, _ = strconv.Atoi(whatsappVersionMajor)
+	// Distinguish absent settings from malformed, zero or partial overrides.
+	// Discarding parse errors can silently turn an explicit override into auto mode.
+	versionValues := [3]string{whatsappVersionMajor, whatsappVersionMinor, whatsappVersionPatch}
+	var versionParts [3]int
+	versionInvalid := false
+	if versionValues != [3]string{} {
+		for i, raw := range versionValues {
+			part, err := strconv.Atoi(raw)
+			if err != nil || part <= 0 || uint64(part) > uint64(^uint32(0)) {
+				versionInvalid = true
+			}
+			versionParts[i] = part
+		}
 	}
-	minor := 0
-	if whatsappVersionMinor != "" {
-		minor, _ = strconv.Atoi(whatsappVersionMinor)
-	}
-	patch := 0
-	if whatsappVersionPatch != "" {
-		patch, _ = strconv.Atoi(whatsappVersionPatch)
-	}
+	major, minor, patch := versionParts[0], versionParts[1], versionParts[2]
 
 	qrMaxCount := 5 // Valor padrão
 	if qrcodeMaxCount != "" {
@@ -385,6 +389,8 @@ func Load() *Config {
 		LogMaxAge:            logMaxAge,
 		LogDirectory:         logDirectory,
 		LogCompress:          logCompress,
+
+		WhatsappVersionInvalid: versionInvalid,
 	}
 
 	minioEnabled := os.Getenv(config_env.MINIO_ENABLED) == "true"
