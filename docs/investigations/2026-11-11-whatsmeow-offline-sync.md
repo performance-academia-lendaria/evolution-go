@@ -2,17 +2,21 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 15:32 BRT / 18:32 UTC. Primeira execução encerrada.
+Atualizado em 2026-11-11, 15:42 BRT / 18:42 UTC. Primeira execução encerrada;
+extensão de queda real preparada e validada, prestes a iniciar.
 
-- **Etapa atual:** Fase 1 executada por dez ciclos; **não reproduziu** o congelamento.
-  Parado para decisão do Tuan antes de ampliar o teste ou iniciar Fase 2.
+- **Etapa atual:** Fase 1 ampliada por autorização do Tuan para quedas reais de socket
+  só no receptor. Proxy validado e aplicado, ambos autenticados. Preparação separada
+  dos ciclos. Nenhuma autorização para atualizar biblioteca.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** aguardar resposta do Tuan sobre quedas reais dirigidas ao
-  receptor, duração de duas horas na referência, ou manter parado. Não atualizar
-  whatsmeow, alterar código Go ou iniciar nova execução sem essa resposta.
+- **Próximo passo:** executar
+  `python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180`
+  e registrar a nova sessão/relatório no próximo checkpoint.
+  Tuan escolheu explicitamente essa alternativa após a não reprodução inicial.
+  Não atualizar whatsmeow nem alterar código Go.
   Comando da primeira execução:
   `python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180`.
   Relatório final:
@@ -23,7 +27,8 @@ Atualizado em 2026-11-11, 15:32 BRT / 18:32 UTC. Primeira execução encerrada.
 - **Dependência do Tuan:** dois números exclusivos de teste confirmados e ambos
   pareados. Não é necessário novo QR para as sessões já salvas.
 - **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
-  `evo-offline-sync-lab-receiver` e `evo-offline-sync-lab-postgres`; redes
+  `evo-offline-sync-lab-receiver`, `evo-offline-sync-lab-postgres` e
+  `evo-offline-sync-lab-proxy`; redes
   `evo-offline-sync-lab-data` (interna) e `evo-offline-sync-lab-egress` (saída).
   PostgreSQL temporário usa tmpfs. Nenhum recurso de produção montado.
 - **Acesso local:** `http://127.0.0.1:18080/manager`; somente a API publica porta,
@@ -31,6 +36,10 @@ Atualizado em 2026-11-11, 15:32 BRT / 18:32 UTC. Primeira execução encerrada.
 - **Estado local restrito e ignorado:** `build/offline-sync-lab/`; `api.env` e
   `postgres.env` contêm apenas credenciais novas do laboratório e não devem ser
   impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
+- **Proxy de falha:** somente `target` está configurado para seu túnel local.
+  Remetente direto, sem proxy. Controle em loopback 8083 dentro do container;
+  sem porta publicada. Configuração/credenciais geradas em `proxy.json` e
+  `proxy.env`; prova de validação em `proxy-validated.json`.
 - **Processos em execução:** os três containers acima e a página auxiliar
   `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
   `57886`. Experimento `58062` encerrado; nenhum ciclo ou revisão em background.
@@ -331,6 +340,44 @@ telefones, payloads completos ou conteúdo de mensagem.
   no receptor (remetente online), testar pelo menos duas horas na referência com
   tráfego periódico, ou manter parado. Nenhuma alternativa executada ainda.
 
+### 2026-11-11 — Extensão para quedas reais autorizada pelo Tuan
+
+- Tuan escolheu: “Provocar quedas reais do socket só no receptor, mantendo o
+  remetente online”. A parada da primeira execução foi cumprida antes da resposta.
+- Resultados iniciais e documentação salvos no commit local
+  `6c1ada5 test(whatsapp): record ten reconnects without receive failure`.
+- Plano de extensão registrado antes de implementar: proxy CONNECT local só no
+  receptor, queda de túneis por dez segundos, liberação em finally e watchdog de
+  vinte segundos, sem descriptografar TLS ou alterar a aplicação.
+- Validar primeiro com tráfego de eco sintético, depois aplicar à sessão já salva
+  do receptor. Nenhum novo pareamento necessário. Preservar remetente direto.
+- Medir os mesmos dez ciclos/30s/180s numa execução separada, agora observando
+  `Disconnected` e restart automático. Não chamar a rota de reconexão nos ciclos.
+- Não executado ainda: proxy, configuração ou ciclos do novo método. Sem escrita
+  em produção, mudança Go/dependência, build candidato, push ou PR.
+
+### 2026-11-11, 15:42 BRT — Proxy validado e aplicado ao receptor
+
+- Criados `fault_proxy.py` e `proxy_smoke.py`; estendidos `lab.py` e `experiment.py`
+  para o método `socket`. Nenhuma edição no código Go ou nas dependências.
+- `lab.py socket-setup` criou o quarto container de teste na rede interna/saída,
+  com imagem Python já fixada por ID, sem porta publicada, disco somente leitura
+  e credenciais novas restritas. Teste de eco exclusivamente em loopback, sem WhatsApp.
+- Smoke passou: encaminhamento TCP, EOF real no socket fechado, novo CONNECT
+  bloqueado durante queda, restauração explícita e watchdog independente que
+  restaurou a passagem após vinte segundos.
+- Configurado somente `target` pela rota local de proxy. Essa rota reconecta
+  automaticamente para aplicar; essa preparação não conta como ciclo experimental.
+  Nenhuma nova leitura de QR, logout, exclusão, restart da API ou alteração no banco
+  fora da configuração descartável da instância de teste.
+- Estado após preparação: ambos `Connected=true, LoggedIn=true`; licença ativa.
+  Proxy com um túnel ativo, três aceitos (dois do smoke), zero autenticações rejeitadas;
+  controle aberto. Remetente confirmado sem proxy.
+- Parâmetros do próximo experimento: dez ciclos, dez segundos de queda real,
+  restauração máxima de vinte segundos, limites de 30/180 s preservados.
+  Registrar EOF/Disconnected/restart automático e entrega, sem reconexão manual
+  durante os ciclos. Nova execução separada da primeira.
+
 ## Comparação antes e depois
 
 | Medida | Referência `main` / imagem atual | Candidato |
@@ -354,5 +401,5 @@ telefones, payloads completos ou conteúdo de mensagem.
 A hipótese da whatsmeow defasada permanece sem teste causal. Dez reconexões locais
 pela rota da API não reproduziram a perda de recebimento, apesar da falta de
 Completed. Não há correção nem conclusão de estabilidade de duas horas. Aguardar
-decisão do Tuan antes de ampliar a reprodução ou atualizar a dependência; as demais
-fases continuam pendentes.
+decisão do Tuan sobre a hipótese antes de atualizar a dependência. A ampliação para
+quedas reais foi autorizada e está em preparação; as demais fases continuam pendentes.

@@ -24,6 +24,7 @@ IMAGE = "tuanmedeiros/evolution-go:0.7.2-0.1.0"
 API_URL = "http://127.0.0.1:18080"
 CONTAINERS = [PROJECT + "-api", PROJECT + "-receiver", PROJECT + "-postgres"]
 NETWORKS = [PROJECT + "-egress", PROJECT + "-data"]
+PROXY = PROJECT + "-proxy"
 DOCKER = []
 
 
@@ -31,9 +32,9 @@ class LabError(Exception):
     pass
 
 
-def docker(*args, required=True):
+def docker(*args, required=True, stdin=None):
     # Capture all output: Docker errors can include environment/credential values.
-    result = subprocess.run(DOCKER + list(args), capture_output=True, text=True)
+    result = subprocess.run(DOCKER + list(args), capture_output=True, text=True, input=stdin)
     if required and result.returncode:
         raise LabError("Docker operation failed (%s); raw output withheld." % args[0])
     return result
@@ -180,6 +181,85 @@ def connect_paired():
         print(role + ": requested connection using saved pairing.")
 
 
+def proxy_control(action="status"):
+    if action not in ("status", "drop", "up"):
+        raise LabError("Unsupported local proxy action.")
+    if not owned("container", PROXY):
+        raise LabError("Labelled local proxy is required.")
+    program = ("import json,urllib.request\n"
+               "opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))\n"
+               "request=urllib.request.Request('http://127.0.0.1:8083/" + action + "',"
+               "data=" + ("None" if action == "status" else "b''") + ")\n"
+               "with opener.open(request,timeout=5) as response: print(json.dumps(json.load(response)))\n")
+    result = docker("exec", PROXY, "python", "-B", "-c", program)
+    return json.loads(result.stdout)
+
+
+def socket_setup():
+    """Prepare the fault proxy, test it, then route only the target through it."""
+    if request("/license/status").get("status") != "active":
+        raise LabError("STOP: local license is inactive.")
+    accounts = json.loads((STATE / "instances.json").read_text())
+    key = admin_key()
+    for instance in accounts.values():
+        data = request("/instance/status", instance["token"]).get("data", {})
+        if not (data.get("Connected") and data.get("LoggedIn")):
+            raise LabError("Both saved test accounts must be authenticated before setup.")
+    sender_info = request("/instance/info/" + accounts["sender"]["id"], key).get("data", {})
+    if json.loads(sender_info.get("proxy") or "null"):
+        raise LabError("Sender has a proxy; refusing to alter or reuse it.")
+    config_path = STATE / "proxy.json"
+    if config_path.exists():
+        config = json.loads(config_path.read_text())
+    else:
+        config = {"protocol": "http", "host": PROXY, "port": "8082", "username": "lab",
+                  "password": secrets.token_hex(24)}
+        private_file(config_path, json.dumps(config, indent=2) + "\n")
+    if not owned("container", PROXY):
+        private_file(STATE / "proxy.env", "LAB_PROXY_PASSWORD=" + config["password"] + "\n")
+        identity = json.loads((STATE / "identity.json").read_text())
+        docker("run", "-d", "--name", PROXY, "--label", LABEL, "--read-only", "--tmpfs", "/tmp",
+               "--network", "name=" + NETWORKS[0] + ",gw-priority=1",
+               "--network", "name=" + NETWORKS[1] + ",gw-priority=0",
+               "--env-file", str(STATE / "proxy.env"),
+               "--mount", "type=bind,src=" + str(Path(__file__).with_name("fault_proxy.py")) + ",dst=/proxy.py,readonly",
+               identity["images"]["python:3.12-slim"], "python", "-B", "/proxy.py")
+        for _ in range(30):
+            try:
+                proxy_control()
+                break
+            except LabError:
+                time.sleep(0.2)
+        else:
+            raise LabError("Local proxy did not become ready.")
+    validated = STATE / "proxy-validated.json"
+    if not validated.exists():
+        smoke = docker("exec", "-i", PROXY, "python", "-B", "-",
+                       stdin=Path(__file__).with_name("proxy_smoke.py").read_text())
+        print(smoke.stdout.strip(), flush=True)
+        private_file(validated, json.dumps({"validated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                           "smoke": "loopback EOF, held CONNECT, manual restore, 20 s watchdog"}) + "\n")
+    current = request("/instance/info/" + accounts["target"]["id"], key).get("data", {})
+    saved_proxy = json.loads(current.get("proxy") or "null")
+    if saved_proxy and saved_proxy != config:
+        raise LabError("Target has an unexpected proxy; refusing to overwrite it.")
+    if saved_proxy != config:
+        # This route starts its own reconnect to apply settings. Do not call
+        # /instance/reconnect again and do not count this preparation as a cycle.
+        request("/instance/proxy/" + accounts["target"]["id"], key, config)
+    for _ in range(60):
+        state = request("/instance/status", accounts["target"]["token"]).get("data", {})
+        stats = proxy_control()
+        if stats["rejected_auth"]:
+            raise LabError("Proxy authentication rejected; stop before any direct fallback.")
+        if state.get("Connected") and state.get("LoggedIn") and stats["active_tunnels"] > 0:
+            print("Target authenticated through local fault proxy; sender configuration unchanged.")
+            print(json.dumps(stats))
+            return
+        time.sleep(0.5)
+    raise LabError("Target did not authenticate through proxy; stop before recovery.")
+
+
 def qr_page():
     """Show live QRs without invoking /instance/qr, which can restart paired clients."""
     instances = json.loads((STATE / "instances.json").read_text())
@@ -260,6 +340,8 @@ def status():
             result["resources"][name] = state.stdout.strip()
         else:
             result["resources"][name] = "absent"
+    if owned("container", PROXY):
+        result["resources"][PROXY] = docker("container", "inspect", "--format", "{{.State.Status}}", PROXY).stdout.strip()
     if result["resources"][PROJECT + "-api"] == "running":
         try:
             # Select only the status; /license/status may also include key fragments.
@@ -282,7 +364,7 @@ def status():
 def up():
     if STATE.exists():
         raise LabError("Lab state already exists. Use status; do not overwrite or reinitialize it.")
-    for name in CONTAINERS:
+    for name in (CONTAINERS[0], PROXY, CONTAINERS[1], CONTAINERS[2]):
         if owned("container", name):
             raise LabError("Lab container already exists. Use status or down first.")
     for name in NETWORKS:
@@ -354,7 +436,7 @@ def up():
 def down():
     # Only our labelled resources are eligible, on the explicitly local daemon.
     # PostgreSQL uses tmpfs: removing its container irreversibly erases lab data.
-    for name in CONTAINERS:
+    for name in (CONTAINERS[0], PROXY, CONTAINERS[1], CONTAINERS[2]):
         if owned("container", name):
             docker("rm", "-f", "-v", name)
     for name in NETWORKS:
@@ -366,11 +448,11 @@ def down():
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["up", "status", "pair", "connect", "qr-page", "down"])
+    parser.add_argument("command", choices=["up", "status", "pair", "connect", "qr-page", "socket-setup", "down"])
     args = parser.parse_args()
     local_docker()
     {"up": up, "status": status, "pair": pair, "connect": connect_paired,
-     "qr-page": qr_page, "down": down}[args.command]()
+     "qr-page": qr_page, "socket-setup": socket_setup, "down": down}[args.command]()
 
 
 if __name__ == "__main__":

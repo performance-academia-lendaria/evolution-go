@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import secrets
+import subprocess
 import sys
 import time
 import urllib.error
@@ -106,7 +107,9 @@ def checkpoint(report, json_path, markdown_path):
             "- Run: `" + report["run"] + "`; label: `" + report["label"] + "`.",
             "- Started: " + report["started_utc"] + ".",
             "- Image ID: `" + report["image_id"] + "`.",
-            "- Method: local `POST /instance/reconnect` invokes `ReconnectClient` on target only.",
+            "- Method: " + ("real TCP closure through target-only CONNECT proxy; application's Disconnected handler reconnects"
+                              if report.get("method") == "socket" else
+                              "local POST /instance/reconnect invokes ReconnectClient on target only") + ".",
             "- Recovery/observation window: " + str(report["recovery_seconds"]) + " seconds.",
             "- Initial/before marker timeout: 30 seconds. Target API restart delay is the unchanged application default (2 seconds).",
             "- A during marker is confirmed only if target was offline at request and still offline after sender acknowledgement.",
@@ -124,6 +127,16 @@ def checkpoint(report, json_path, markdown_path):
             outbound=cycle.get("outbound_received", False), result=cycle.get("result", "in_progress")))
     if report.get("stop_reason"):
         rows += ["", "Stop reason: " + report["stop_reason"]]
+    if report.get("method") == "socket":
+        rows += ["", "Socket outage: " + str(report["down_seconds"]) + " seconds; independent gate restore within 20 seconds.",
+                 "", "| Cycle | Tunnels closed | Disconnected-triggered restarts | Sender remained authenticated | Gate restored |",
+                 "|---|---|---|---|---|"]
+        for cycle in report["cycles"]:
+            rows.append("| %s | %s | %s | %s | %s |" % (
+                cycle["cycle"], cycle.get("proxy_drop", {}).get("closed_tunnels", "pending"),
+                cycle.get("logs", {}).get("automatic_restart", 0),
+                cycle.get("sender_remained_authenticated", "pending"),
+                cycle.get("proxy_restored", {}).get("gate_open", "pending")))
     lab.private_file(markdown_path, "\n".join(rows) + "\n")
 
 
@@ -137,14 +150,29 @@ def run(args):
         raise lab.LabError("STOP: local license is inactive.")
     if not authenticated(target) or not authenticated(sender):
         raise lab.LabError("STOP: both test accounts must be authenticated before the experiment.")
+    if args.method == "socket":
+        key = lab.admin_key()
+        expected = json.loads((lab.STATE / "proxy.json").read_text())
+        for role, account in accounts.items():
+            info = lab.request("/instance/info/" + account["id"], key).get("data", {})
+            proxy = json.loads(info.get("proxy") or "null")
+            if (role == "target" and proxy != expected) or (role == "sender" and proxy):
+                raise lab.LabError("STOP: target-only proxy routing could not be verified.")
+        stats = lab.proxy_control()
+        if not stats["gate_open"] or not stats["active_tunnels"] or stats["rejected_auth"]:
+            raise lab.LabError("STOP: target proxy is not healthy; do not run a fake socket test.")
     run_id = secrets.token_hex(4)
-    report = {"run": run_id, "label": args.label, "status": "preflight", "started_utc": utc(),
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    report = {"run": run_id, "label": args.label, "method": args.method, "harness_commit": revision,
+              "down_seconds": args.down_seconds if args.method == "socket" else None,
+              "status": "preflight", "started_utc": utc(),
               "image_id": lab.docker("container", "inspect", "--format", "{{.Image}}", lab.CONTAINERS[0]).stdout.strip(),
               "recovery_seconds": args.recovery_seconds, "cycles": []}
     output = lab.STATE / "results"
     output.mkdir(exist_ok=True, mode=0o700)
-    json_path = output / (args.label + "-" + run_id + ".json")
-    markdown_path = lab.ROOT / "docs" / "investigations" / ("2026-11-11-offline-sync-" + args.label + "-" + run_id + ".md")
+    prefix = args.label + ("-socket" if args.method == "socket" else "")
+    json_path = output / (prefix + "-" + run_id + ".json")
+    markdown_path = lab.ROOT / "docs" / "investigations" / ("2026-11-11-offline-sync-" + prefix + "-" + run_id + ".md")
     save = lambda: checkpoint(report, json_path, markdown_path)
     save()
     print("Experiment report: " + str(markdown_path), flush=True)
@@ -168,14 +196,39 @@ def run(args):
             if not wait_for(lambda: received(target, markers["before"]), 30):
                 raise lab.LabError("STOP: before marker was not delivered; cannot start another reconnect.")
             cycle["received"]["before"] = True
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                reconnect = executor.submit(lab.request, "/instance/reconnect", target["token"], {}, 30)
-                disconnected = wait_for(lambda: not instance_state(target)["connected"], 10, interval=0.05)
-                cycle["disconnect_observed"] = disconnected
-                if disconnected:
+            if args.method == "socket":
+                # Drop genuine target TCP sockets. Do not call any app reconnect
+                # endpoint: its unchanged Disconnected handler must do the work.
+                down_at = time.monotonic()
+                try:
+                    cycle["proxy_drop"] = lab.proxy_control("drop")
+                    save()
+                    if not cycle["proxy_drop"]["closed_tunnels"]:
+                        raise lab.LabError("STOP: no active target socket was closed; invalid cycle.")
+                    disconnected = wait_for(lambda: not instance_state(target)["connected"], 5, interval=0.05)
+                    cycle["disconnect_observed"] = disconnected
+                    if not disconnected:
+                        raise lab.LabError("STOP: socket drop did not disconnect target; possible direct fallback.")
                     cycle["sends"]["during"] = send(sender, target, markers["during"])
-                    cycle["during_confirmed"] = not instance_state(target)["connected"]
-                reconnect.result()
+                    cycle["sender_remained_authenticated"] = authenticated(sender)
+                    cycle["during_confirmed"] = (not instance_state(target)["connected"]
+                                                  and not lab.proxy_control()["gate_open"])
+                    save()
+                    time.sleep(max(0, args.down_seconds - (time.monotonic() - down_at)))
+                finally:
+                    cycle["proxy_restored"] = lab.proxy_control("up")
+                    save()
+                if not cycle["sender_remained_authenticated"]:
+                    raise lab.LabError("STOP: sender lost authentication during target outage.")
+            else:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    reconnect = executor.submit(lab.request, "/instance/reconnect", target["token"], {}, 30)
+                    disconnected = wait_for(lambda: not instance_state(target)["connected"], 10, interval=0.05)
+                    cycle["disconnect_observed"] = disconnected
+                    if disconnected:
+                        cycle["sends"]["during"] = send(sender, target, markers["during"])
+                        cycle["during_confirmed"] = not instance_state(target)["connected"]
+                    reconnect.result()
             cycle["reconnected"] = wait_for(lambda: authenticated(target), args.recovery_seconds)
             if not cycle["reconnected"]:
                 cycle["result"] = "recovery_failed"
@@ -229,11 +282,15 @@ def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", choices=["before", "after"], default="before")
+    parser.add_argument("--method", choices=["api", "socket"], default="api")
+    parser.add_argument("--down-seconds", type=int, default=10)
     parser.add_argument("--cycles", type=int, default=10)
     parser.add_argument("--recovery-seconds", type=int, default=180)
     args = parser.parse_args()
     if args.cycles < 10 or args.cycles > 50 or args.recovery_seconds < 30:
         parser.error("Use 10..50 cycles and at least 30 seconds of recovery observation.")
+    if not 5 <= args.down_seconds <= 15:
+        parser.error("Use a 5..15 second socket outage below the independent 20 second restore.")
     lab.local_docker()
     run(args)
 

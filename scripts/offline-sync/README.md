@@ -111,3 +111,37 @@ Falha inicial, autenticação perdida ou janela não confirmada encerram como
 como `not_reproduced`: parar e consultar o Tuan antes de atualizar a whatsmeow.
 Não recuperar uma sessão com defeito automaticamente nem iniciar nova execução
 concorrente sobre as mesmas instâncias.
+
+## Método de queda real de socket somente no receptor
+
+Esta extensão foi autorizada pelo Tuan após os dez ciclos da rota de API não
+reproduzirem a perda de recebimento. Ela mantém a mesma imagem e biblioteca.
+
+```sh
+python3 scripts/offline-sync/lab.py socket-setup
+python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180
+```
+
+`socket-setup` cria `evo-offline-sync-lab-proxy` sem porta publicada, valida-o com
+tráfego TCP de eco em loopback (incluindo encerramento, CONNECT bloqueado e
+restauração automática em vinte segundos) e configura apenas `target` pela API
+local. A rota aplica a configuração com sua própria reconexão, fora da medição.
+Não chamar outra reconexão em paralelo. O remetente deve continuar sem proxy.
+As credenciais novas do túnel ficam em `build/offline-sync-lab/proxy.json` e
+`proxy.env`, restritas e ignoradas; não copiar nem imprimir seus valores.
+
+O proxy encaminha bytes TLS opacos. Durante cada ciclo, fecha todos os túneis
+ativos do receptor e segura novos CONNECT por dez segundos. Nenhum endpoint de
+reconexão é chamado pelo roteiro nesse método: o evento `Disconnected` deve
+disparar a recuperação da aplicação original. Validar sockets fechados, queda
+observada, remetente autenticado, marco durante confirmado e restart automático.
+
+A liberação é feita em `finally`. Um watchdog dentro do proxy abre a passagem
+em vinte segundos mesmo se o processo do experimento morrer. A API/banco/receptor
+de webhook e a saída direta do remetente não são interrompidos. A interface de
+controle só escuta em loopback dentro do container e é usada por `docker exec`.
+
+Resultados recebem prefixo `before-socket-<run>` e não sobrescrevem a referência
+anterior. Se não reproduzir em dez ciclos ou aparecer outro bloqueio, parar e
+consultar o Tuan novamente. `lab.py down` também remove o proxy quando a limpeza
+do ambiente for apropriada; não executar isso durante testes ou ativação.

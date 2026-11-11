@@ -11,11 +11,10 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** Fase 1 executada por dez ciclos de `ReconnectClient`, sem reproduzir
-o congelamento. Trinta mensagens de entrada e dez de saída entregues; dez Preview,
-zero Completed; zero panics/erros de stream observados em 31min12s. Execução
-`before-588b5cb3` encerrada como `not_reproduced`. Parada exigida pelo Tuan antes de
-Fase 2; aguardar decisão sobre ampliação do teste. Nenhuma mudança de Go/dependência.
+**Estado atual:** primeira execução por dez ciclos de `ReconnectClient` não
+reproduziu; resultados preservados em `before-588b5cb3`. Tuan autorizou em seguida
+quedas reais de socket somente no receptor, mantendo remetente online. Preparar
+essa extensão da Fase 1 na mesma imagem, sem mudança de Go/dependência.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -135,8 +134,32 @@ tabela por ciclo, resultado consolidado e decisão explícita de reprodução.
 [tabela por ciclo](../investigations/2026-11-11-offline-sync-before-588b5cb3.md).
 Não reproduziu; nenhuma autorização inferida para atualizar a biblioteca. Pergunta
 pendente: quedas reais de socket dirigidas ao receptor, teste de duração na versão
-atual ou manter parado. O roteiro atual chama a rota de reconexão, não simula
+atual ou manter parado. Tuan escolheu quedas reais de socket. O roteiro inicial chama a rota de reconexão, não simula
 `stream:error` de servidor nem o ack de status/media visto em produção.
+
+### Extensão autorizada — queda real do socket do receptor
+
+1. Acrescentar proxy HTTP CONNECT descartável, sem porta publicada, somente para
+   o receptor; remetente permanece direto. O túnel encaminha bytes TLS sem
+   descriptografar, imprimir ou salvar seu conteúdo.
+2. Validar o proxy primeiro com TCP de eco sintético local: conexão, transporte,
+   encerramento real de sockets, bloqueio temporário de novas conexões e restauração.
+   Ainda não usar WhatsApp nessa verificação.
+3. Aplicar proxy somente em `offline-sync-target` pela API local, reutilizando
+   pareamento existente. A própria rota reconecta para aplicar; registrar essa
+   preparação separadamente dos ciclos medidos. Não reiniciar a API/banco nem
+   parear novamente. Confirmar remetente sem proxy e ambos autenticados.
+4. Novo método do roteiro: fechar túneis ativos do receptor e segurar novos CONNECT
+   por dez segundos. Confirmar queda observada, envio aceito durante a queda e
+   remetente autenticado. Liberar túneis em `finally`; controle independente libera
+   automaticamente em vinte segundos se o processo de teste morrer.
+5. Aguardar a reconexão disparada pelo handler `Disconnected` original, sem chamar
+   a rota `/instance/reconnect` nos ciclos. Registrar número de sockets fechados,
+   restart automático e estado do proxy, além dos indicadores anteriores.
+6. Manter dez ciclos, limites de 30/180 segundos e marcadores antes/durante/depois
+   mais prova de envio do receptor. Salvar nova execução distinta da primeira.
+7. Se reproduzir, preservar a sessão com falha e diagnosticar. Se não reproduzir
+   ou houver outro bloqueio, parar novamente e consultar o Tuan antes de Fase 2.
 
 ## Fase 2 — Correção mínima condicionada à reprodução
 
