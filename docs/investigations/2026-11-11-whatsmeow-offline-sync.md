@@ -2,7 +2,7 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 14:41 BRT / 17:41 UTC.
+Atualizado em 2026-11-11, 14:42 BRT / 17:42 UTC.
 
 - **Etapa atual:** preparação da Fase 1 **bloqueada por licença local inativa**.
 - **Branch:** `fix/whatsmeow-offline-sync`.
@@ -28,9 +28,10 @@ Atualizado em 2026-11-11, 14:41 BRT / 17:41 UTC.
   impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
 - **Processos em execução:** os três containers acima; nenhum comando de teste
   ou revisão em background. O bootstrap terminou com código 1 pelo gate de licença.
-- **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A pedido
-  do Tuan, a chave administrativa gerada do laboratório foi transferida diretamente
-  do arquivo local para a área de transferência, sem aparecer no chat ou no diário.
+- **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
+  administrativa do laboratório foi copiada para a área de transferência e, após
+  autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
+  em arquivos versionados. A exceção vale somente para essa chave de teste.
 - **Produção:** nenhum acesso à EC2 ou aos bancos nesta sessão; nenhuma alteração.
 - **Push, PR, build Go, suíte Go e revisão Codex:** ainda não executados.
 - **Limpeza disponível, não executada:**
@@ -147,6 +148,16 @@ telefones, payloads completos ou conteúdo de mensagem.
   própria de teste. A chave administrativa aleatória não constitui uma licença
   válida por si. Depois da confirmação, consultar apenas o estado sanitizado.
 - Sem novo pareamento, ciclos, atualização de dependência, push ou acesso à EC2.
+
+### 2026-11-11, 14:42 BRT — Autorização explícita para exibir a chave de teste
+
+- Tuan autorizou expressamente expor a API key de teste no chat.
+- Lida e exibida somente a linha `GLOBAL_API_KEY` do arquivo gerado do laboratório,
+  sem ler as connection strings subsequentes nem acessar credenciais de produção.
+- Não registrar o valor em arquivos versionados. Nenhuma alteração na configuração
+  ou no bloqueio de licença; ativação local pelo Tuan continua pendente.
+- Observado `untitled.md` não rastreado; arquivo não aberto, alterado ou incluído
+  em commits, assim como o `AGENTS.md` preexistente.
 
 ## Comparação antes e depois
 
