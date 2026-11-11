@@ -40,7 +40,7 @@ extensão de queda real preparada e validada, prestes a iniciar.
   Remetente direto, sem proxy. Controle em loopback 8083 dentro do container;
   sem porta publicada. Configuração/credenciais geradas em `proxy.json` e
   `proxy.env`; prova de validação em `proxy-validated.json`.
-- **Processos em execução:** os três containers acima e a página auxiliar
+- **Processos em execução:** os quatro containers acima e a página auxiliar
   `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
   `57886`. Experimento `58062` encerrado; nenhum ciclo ou revisão em background.
 - **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
@@ -377,6 +377,25 @@ telefones, payloads completos ou conteúdo de mensagem.
   restauração máxima de vinte segundos, limites de 30/180 s preservados.
   Registrar EOF/Disconnected/restart automático e entrega, sem reconexão manual
   durante os ciclos. Nova execução separada da primeira.
+
+### 2026-11-11, 15:46 BRT — Roteamento conferido por metadados locais
+
+- Preparação do proxy salva em
+  `82b46d5 test(whatsapp): add target-only TCP fault injection`.
+- Primeira tentativa do método socket encerrou antes de qualquer marcador/ciclo:
+  o preflight tentou conferir proxy via `Info`, mas `Info` e `All` deliberadamente
+  zeram esse campo na resposta (`instance_service.go`). Não houve queda real nessa
+  tentativa nem criação de relatório experimental; não conta como ciclo.
+- Corrigida verificação do roteiro com `proxy_routes`: consulta somente local ao
+  PostgreSQL temporário, IDs validados como UUID, banco fixo `offline_sync_instances`,
+  selecionando host/protocolo/porta e booleano de presença de autenticação. Não
+  retorna senha, username, token, licença ou connection string.
+- Corrigida uma aspa SQL na nova consulta; habilitado `ON_ERROR_STOP=1` para uma
+  falha SQL não ser tratada como lista vazia válida. Verificação repetida passou.
+- Resultado sanitizado: `target_route_matches=true`, `sender_direct=true`;
+  `gate_open=true`, um túnel ativo, três aceitos, zero rejeições de autenticação.
+- Sem alteração no Go, biblioteca, pareamentos ou imagem. Pronto para nova
+  execução; aplicar esta correção não iniciou outra reconexão.
 
 ## Comparação antes e depois
 

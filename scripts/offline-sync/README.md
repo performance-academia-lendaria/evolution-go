@@ -129,6 +129,9 @@ local. A rota aplica a configuração com sua própria reconexão, fora da medi�
 Não chamar outra reconexão em paralelo. O remetente deve continuar sem proxy.
 As credenciais novas do túnel ficam em `build/offline-sync-lab/proxy.json` e
 `proxy.env`, restritas e ignoradas; não copiar nem imprimir seus valores.
+Como `Info` e `All` ocultam a configuração de proxy, o preflight verifica o
+roteamento por consulta somente de leitura ao PostgreSQL local temporário,
+retornando apenas host/protocolo/porta e presença de autenticação, sem credenciais.
 
 O proxy encaminha bytes TLS opacos. Durante cada ciclo, fecha todos os túneis
 ativos do receptor e segura novos CONNECT por dez segundos. Nenhum endpoint de

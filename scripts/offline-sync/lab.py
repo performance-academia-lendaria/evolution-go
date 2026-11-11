@@ -195,6 +195,33 @@ def proxy_control(action="status"):
     return json.loads(result.stdout)
 
 
+def proxy_routes(accounts):
+    """Read only non-secret routing fields from the exclusively local test DB.
+
+    Instance Info and All deliberately clear Proxy before returning it, so their
+    response cannot prove either the presence or absence of configured routing.
+    """
+    if not owned("container", CONTAINERS[2]):
+        raise LabError("Labelled temporary PostgreSQL is required for route verification.")
+    role_by_id = {str(uuid.UUID(value["id"])): role for role, value in accounts.items()}
+    identifiers = ",".join("'" + identifier + "'" for identifier in role_by_id)
+    query = ("SELECT json_build_object('id',id,'protocol',NULLIF(proxy,'')::jsonb->>'protocol',"
+             "'host',NULLIF(proxy,'')::jsonb->>'host','port',NULLIF(proxy,'')::jsonb->>'port',"
+             "'has_auth',COALESCE(length(NULLIF(proxy,'')::jsonb->>'username'),0)>0 AND "
+             "COALESCE(length(NULLIF(proxy,'')::jsonb->>'password'),0)>0) "
+             "FROM instances WHERE id IN (" + identifiers + ");\n")
+    raw = docker("exec", "-i", CONTAINERS[2], "psql", "--no-psqlrc", "-X", "-v", "ON_ERROR_STOP=1", "-U", "lab",
+                 "-d", "offline_sync_instances", "-Atq", stdin=query)
+    routes = {}
+    for line in raw.stdout.splitlines():
+        value = json.loads(line)
+        role = role_by_id[value.pop("id")]
+        routes[role] = value
+    if set(routes) != set(accounts):
+        raise LabError("Expected test instance routing records were not found.")
+    return routes
+
+
 def socket_setup():
     """Prepare the fault proxy, test it, then route only the target through it."""
     if request("/license/status").get("status") != "active":
@@ -205,8 +232,8 @@ def socket_setup():
         data = request("/instance/status", instance["token"]).get("data", {})
         if not (data.get("Connected") and data.get("LoggedIn")):
             raise LabError("Both saved test accounts must be authenticated before setup.")
-    sender_info = request("/instance/info/" + accounts["sender"]["id"], key).get("data", {})
-    if json.loads(sender_info.get("proxy") or "null"):
+    routes = proxy_routes(accounts)
+    if routes["sender"]["host"]:
         raise LabError("Sender has a proxy; refusing to alter or reuse it.")
     config_path = STATE / "proxy.json"
     if config_path.exists():
@@ -239,11 +266,11 @@ def socket_setup():
         print(smoke.stdout.strip(), flush=True)
         private_file(validated, json.dumps({"validated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                                            "smoke": "loopback EOF, held CONNECT, manual restore, 20 s watchdog"}) + "\n")
-    current = request("/instance/info/" + accounts["target"]["id"], key).get("data", {})
-    saved_proxy = json.loads(current.get("proxy") or "null")
-    if saved_proxy and saved_proxy != config:
+    current = routes["target"]
+    matches = all(current.get(field) == config[field] for field in ("protocol", "host", "port")) and current["has_auth"]
+    if current["host"] and not matches:
         raise LabError("Target has an unexpected proxy; refusing to overwrite it.")
-    if saved_proxy != config:
+    if not matches:
         # This route starts its own reconnect to apply settings. Do not call
         # /instance/reconnect again and do not count this preparation as a cycle.
         request("/instance/proxy/" + accounts["target"]["id"], key, config)

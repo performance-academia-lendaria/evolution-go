@@ -151,12 +151,11 @@ def run(args):
     if not authenticated(target) or not authenticated(sender):
         raise lab.LabError("STOP: both test accounts must be authenticated before the experiment.")
     if args.method == "socket":
-        key = lab.admin_key()
         expected = json.loads((lab.STATE / "proxy.json").read_text())
-        for role, account in accounts.items():
-            info = lab.request("/instance/info/" + account["id"], key).get("data", {})
-            proxy = json.loads(info.get("proxy") or "null")
-            if (role == "target" and proxy != expected) or (role == "sender" and proxy):
+        routes = lab.proxy_routes(accounts)
+        for role, route in routes.items():
+            target_matches = all(route.get(field) == expected[field] for field in ("protocol", "host", "port")) and route["has_auth"]
+            if (role == "target" and not target_matches) or (role == "sender" and route["host"]):
                 raise lab.LabError("STOP: target-only proxy routing could not be verified.")
         stats = lab.proxy_control()
         if not stats["gate_open"] or not stats["active_tunnels"] or stats["rejected_auth"]:
