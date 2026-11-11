@@ -2,25 +2,39 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 14:22 BRT / 17:22 UTC.
+Atualizado em 2026-11-11, 14:26 BRT / 17:26 UTC.
 
-- **Etapa atual:** Fase 0 concluída quanto à documentação; preparação da Fase 1.
+- **Etapa atual:** preparação da Fase 1 **bloqueada por licença local inativa**.
 - **Branch:** `fix/whatsmeow-offline-sync`.
-- **Base e HEAD inicial:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`).
+- **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
+  `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** preparar o roteiro de laboratório local e verificar somente
-  o estado da licença. Não iniciar a Fase 2 sem reprodução registrada.
+- **Próximo passo:** aguardar orientação do Tuan sobre licença própria de teste e
+  disponibilidade dos dois números. Não fazer ativação nem contornar o gate. Após
+  a resposta, consultar `python3 scripts/offline-sync/lab.py status` e retomar
+  preparação do pareamento/ciclos. Não iniciar Fase 2 sem reprodução registrada.
 - **Dependência do Tuan:** confirmar número exclusivo de teste disponível para QR
   e outro remetente para enviar mensagens nas janelas de queda/recuperação. A
   pergunta foi feita; a resposta recebida pediu documentação prévia e ainda não
   confirmou a disponibilidade dos números.
-- **Recursos criados até este checkpoint:** branch e os dois documentos de plano
-  e diário. Nenhum container, rede, volume ou banco de teste criado.
-- **Processos em execução:** nenhum iniciado por esta investigação.
+- **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
+  `evo-offline-sync-lab-receiver` e `evo-offline-sync-lab-postgres`; redes
+  `evo-offline-sync-lab-data` (interna) e `evo-offline-sync-lab-egress` (saída).
+  PostgreSQL temporário usa tmpfs. Nenhum recurso de produção montado.
+- **Acesso local:** `http://127.0.0.1:18080/manager`; somente a API publica porta,
+  restrita a `127.0.0.1:18080`. Banco e receptor não publicam portas.
+- **Estado local restrito e ignorado:** `build/offline-sync-lab/`; `api.env` e
+  `postgres.env` contêm apenas credenciais novas do laboratório e não devem ser
+  impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
+- **Processos em execução:** os três containers acima; nenhum comando de teste
+  ou revisão em background. O bootstrap terminou com código 1 pelo gate de licença.
 - **Segredos:** nenhum arquivo de segredos aberto; nenhuma licença ou credencial
   de produção lida ou copiada.
 - **Produção:** nenhum acesso à EC2 ou aos bancos nesta sessão; nenhuma alteração.
-- **Push, PR, build, testes e revisão Codex:** ainda não executados.
+- **Push, PR, build Go, suíte Go e revisão Codex:** ainda não executados.
+- **Limpeza disponível, não executada:**
+  `python3 scripts/offline-sync/lab.py down`; apaga o banco temporário e preserva
+  arquivos locais para limpeza explícita. Não rodar durante a ativação/medição.
 
 ## Critério de registro
 
@@ -80,12 +94,51 @@ telefones, payloads completos ou conteúdo de mensagem.
 - Decisão: continuar somente a preparação local autorizada; dependência e código
   de produção permanecem sem mudanças até a reprodução.
 
+### 2026-11-11 — Plano salvo e bootstrap preparado
+
+- Plano e diário salvos no commit local
+  `1ef5673 docs(whatsapp): record offline sync investigation plan`.
+  Apenas esses dois arquivos foram incluídos; nenhum push executado.
+- Criados `scripts/offline-sync/lab.py`, `receiver.py` e `README.md`.
+  O roteiro inicial oferece `up`, `status` e `down`; pareamento/ciclos/medição
+  permanecem pendentes, sem alegação de reprodução.
+- Preparação prevista: daemon exclusivamente local por socket Unix, imagens
+  fixadas por ID, banco em tmpfs sem porta publicada, receptor na rede interna,
+  API com porta em loopback e rede separada de saída, estado em diretório ignorado.
+- Receptor usa lista permitida de metadados. Não salva payload nem imprime logs
+  de requisição. O bootstrap não lê `.env` e não fornece licença real.
+- Próximo experimento: conferir sintaxe e recursos locais; iniciar a referência
+  apenas para verificar prontidão e estado da licença. Se inativa, registrar o
+  bloqueio, manter o ambiente para decisão do Tuan e parar.
+
+### 2026-11-11, 14:26 BRT — Bootstrap executado; parada por licença
+
+- `ast.parse` de `lab.py` e `receiver.py`: ambos com sintaxe válida.
+- `python3 scripts/offline-sync/lab.py status` antes do bootstrap: três containers
+  ausentes, licença indisponível; nenhum recurso preexistente foi reutilizado.
+- `python3 scripts/offline-sync/lab.py up`: criou as duas redes e os três
+  containers, usando IDs das imagens locais. Configuração de banco e chave local
+  foram geradas automaticamente; nenhum segredo existente foi lido.
+- O estado sanitizado retornou `running` para os três containers e
+  `license: inactive`. O roteiro terminou intencionalmente com código 1:
+  `STOP: local license is not active. Ask Tuan before any activation or workaround.`
+- Conferidas somente portas, destinos/tipos de montagens e configuração das redes,
+  sem inspeção de variáveis de ambiente. Apenas `127.0.0.1:18080` publicado.
+- Conferidas permissões dos arquivos por `stat`, sem abrir conteúdo sensível.
+- **Decisão:** cumprir a parada solicitada. Não ativar automaticamente, não copiar
+  licença de produção, não alterar código de licença e não tentar parear.
+- Nenhum ciclo, mensagem real, unidade Go, atualização de dependência, build,
+  acesso à EC2, push ou PR foi executado. O receptor ainda não foi validado com
+  tráfego WhatsApp; sua preparação não constitui validação funcional.
+- Pendência para o Tuan: orientar ativação de licença própria de teste pelo manager
+  local e confirmar número exclusivo e outro remetente, sem enviar chaves no chat.
+
 ## Comparação antes e depois
 
 | Medida | Referência `main` / imagem atual | Candidato |
 |---|---|---|
 | Identidade | `8d77799`; imagem local identificada acima | Não criado |
-| Licença local | Não verificada | Não executado |
+| Licença local | **Inativa — bloqueio confirmado** | Não executado |
 | QR/pareamento do número de teste | Não executado | Não executado |
 | Ciclos confirmados de reconexão | 0 / mínimo 10 | Não executado |
 | Reconexões com `OfflineSyncCompleted` | Não executado | Não executado |

@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-11, 14:26 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -10,6 +10,10 @@ mudança sustentada por evidência. A biblioteca whatsmeow defasada é uma hipó
 não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
+
+**Estado atual:** bloqueado no pré-requisito de licença local inativa. O ambiente
+descartável está em execução; reprodução ainda não iniciada. Aguardar orientação
+do Tuan, sem ativar licença ou contornar o bloqueio.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -70,7 +74,9 @@ seção de 2026-11-11.
 - [x] Criar a branch solicitada a partir de `main`.
 - [x] Registrar o plano completo, limites, critérios e ponto de retomada.
 - [ ] Confirmar disponibilidade do número de teste e de outro remetente.
-- [ ] Preparar script de laboratório e conferir licença local sem ler a chave.
+- [x] Preparar bootstrap do laboratório e conferir estado da licença sem expor chave.
+- [ ] Resolver com o Tuan o bloqueio de licença local inativa. Pareamento e ciclos
+  do roteiro ainda estão pendentes.
 
 ## Fase 1 — Reprodução antes da correção
 
