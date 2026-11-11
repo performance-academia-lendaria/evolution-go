@@ -2,14 +2,14 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 14:26 BRT / 17:26 UTC.
+Atualizado em 2026-11-11, 14:41 BRT / 17:41 UTC.
 
 - **Etapa atual:** preparação da Fase 1 **bloqueada por licença local inativa**.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** aguardar orientação do Tuan sobre licença própria de teste e
+- **Próximo passo:** aguardar a ativação local pelo Tuan e a confirmação da
   disponibilidade dos dois números. Não fazer ativação nem contornar o gate. Após
   a resposta, consultar `python3 scripts/offline-sync/lab.py status` e retomar
   preparação do pareamento/ciclos. Não iniciar Fase 2 sem reprodução registrada.
@@ -28,8 +28,9 @@ Atualizado em 2026-11-11, 14:26 BRT / 17:26 UTC.
   impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
 - **Processos em execução:** os três containers acima; nenhum comando de teste
   ou revisão em background. O bootstrap terminou com código 1 pelo gate de licença.
-- **Segredos:** nenhum arquivo de segredos aberto; nenhuma licença ou credencial
-  de produção lida ou copiada.
+- **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A pedido
+  do Tuan, a chave administrativa gerada do laboratório foi transferida diretamente
+  do arquivo local para a área de transferência, sem aparecer no chat ou no diário.
 - **Produção:** nenhum acesso à EC2 ou aos bancos nesta sessão; nenhuma alteração.
 - **Push, PR, build Go, suíte Go e revisão Codex:** ainda não executados.
 - **Limpeza disponível, não executada:**
@@ -132,6 +133,20 @@ telefones, payloads completos ou conteúdo de mensagem.
   tráfego WhatsApp; sua preparação não constitui validação funcional.
 - Pendência para o Tuan: orientar ativação de licença própria de teste pelo manager
   local e confirmar número exclusivo e outro remetente, sem enviar chaves no chat.
+
+### 2026-11-11, 14:41 BRT — Acesso local para ativação pelo Tuan
+
+- Tuan informou que vai ativar e solicitou a `GLOBAL_API_KEY` do laboratório.
+- A chave administrativa gerada foi copiada diretamente de
+  `build/offline-sync-lab/api.env` para a área de transferência do macOS via
+  `pbcopy`. A leitura parou na linha da chave, sem abrir os valores das connection
+  strings subsequentes. Nenhum valor de chave foi exibido ao agente ou registrado.
+- Ação restrita ao laboratório, sem leitura de credenciais de produção, alteração
+  de configuração ou tentativa de ativação pelo agente.
+- Próximo passo: Tuan usa Cmd+V no manager local e conclui a ativação com licença
+  própria de teste. A chave administrativa aleatória não constitui uma licença
+  válida por si. Depois da confirmação, consultar apenas o estado sanitizado.
+- Sem novo pareamento, ciclos, atualização de dependência, push ou acesso à EC2.
 
 ## Comparação antes e depois
 
