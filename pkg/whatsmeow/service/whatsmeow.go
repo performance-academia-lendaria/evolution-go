@@ -137,6 +137,11 @@ type clientRun struct {
 	stopped chan struct{}
 }
 
+type reconnectResult struct {
+	executed bool
+	retired  *whatsmeow.Client
+}
+
 func (mycli *MyClient) persistMessageAsync(message message_model.Message) {
 	if mycli == nil || mycli.messageRepository == nil {
 		return
@@ -186,13 +191,19 @@ func (w *whatsmeowService) reconnectClient(instanceId string, expected *whatsmeo
 		return ErrWAVersionNotReady
 	}
 	for {
-		executed, err, _ := w.reconnects.Do(instanceId, func() (interface{}, error) {
-			if expected != nil && w.clientPointer[instanceId] != expected {
-				return false, nil
+		value, err, _ := w.reconnects.Do(instanceId, func() (interface{}, error) {
+			current := w.clientPointer[instanceId]
+			if expected != nil && current != expected {
+				return reconnectResult{}, nil
 			}
-			return true, w.restartClient(instanceId)
+			return reconnectResult{executed: true, retired: current}, w.restartClient(instanceId)
 		})
-		if expected == nil && err == nil && executed == false {
+		result := value.(reconnectResult)
+		if expected != nil && result.retired != expected && w.clientPointer[instanceId] == expected {
+			// Joining another generation's job did not recover this device.
+			continue
+		}
+		if expected == nil && err == nil && !result.executed {
 			// An explicit request may have joined a stale callback's no-op.
 			continue
 		}
@@ -2049,6 +2060,11 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			mycli.loggerWrapper.GetLogger(mycli.userID).LogError("[%s] Error updating instance: %s", mycli.Instance.Id, err)
 		}
 	case *events.Disconnected:
+		if mycli.ctx != nil && mycli.ctx.Err() != nil {
+			// Retiring this generation canceled its socket deliberately. A late
+			// callback must not mark the replacement disconnected or restart it.
+			return
+		}
 		doWebhook = true
 		postMap["event"] = "Disconnected"
 
@@ -2709,7 +2725,7 @@ func (w *whatsmeowService) UpdateInstanceSettings(instanceId string) error {
 
 	// Verifica se o MyClient existe
 	myClient, exists := w.myClientPointer[instanceId]
-	if !exists {
+	if !exists || myClient == nil || (myClient.ctx != nil && myClient.ctx.Err() != nil) {
 		w.loggerWrapper.GetLogger(instanceId).LogWarn("[%s] MyClient not found in runtime, instance may not be connected", instanceId)
 		return fmt.Errorf("instance %s not found in runtime", instanceId)
 	}

@@ -529,52 +529,56 @@ telefones, payloads completos ou conteúdo de mensagem.
   continua sem confirmação causal em produção; candidato precisa de validação local
   completa e teste de duração antes de PR. Opções de ack/sessão continuam sob análise.
 
-## Comparação dos dois métodos na referência atual
+## Comparação dos dois métodos na referência (contador corrigido)
+
+As execuções históricas 588b5cb3 e 1d697be3 tinham contador de Completed inválido.
+As duas repetições abaixo são a referência válida para sincronização. Os scripts
+executados correspondiam ao conteúdo depois commitado em 1df14a7; o campo
+harness_commit das execuções iniciais registra somente HEAD no início, e não
+certifica árvore limpa. Todos os ciclos válidos tiveram janela offline confirmada.
 
 | Indicador | Rota ReconnectClient | Queda TCP real só no receptor |
 |---|---|---|
-| Execução | `before-588b5cb3` | `before-socket-1d697be3` |
+| Execução válida | before-7188d36c | before-socket-a70c1164 |
 | Ciclos com queda e reconexão confirmadas | 10/10 | 10/10 |
 | Sockets encerrados pelo controle | Não se aplica | 10 |
 | Reinícios automáticos por Disconnected | 0 | 10 induzidos |
 | Envio aceito durante queda confirmada | 10/10 | 10/10 |
 | Entrada antes/durante/depois no webhook | 30/30 | 30/30 |
 | Saída do receptor recebida no remetente | 10/10 | 10/10 |
-| Preview / Completed | 10 / 0 | 10 / 0 |
+| Preview / Completed | 10 / 10 | 10 / 10 |
 | Panics / erros de stream nas janelas | 0 / 0 | 0 / 0 |
-| Duração | 31min12s | 32min29s |
 | Incidente de recebimento congelado | Não reproduzido | Não reproduzido |
 
-Ambos os testes usam a mesma imagem e dependência originais. Esta tabela compara
-métodos de queda, **não** uma correção antes/depois. As provas iniciais adicionais
-também chegaram; não estão somadas aos 30 marcadores por execução.
+Ambas usam a imagem original e biblioteca b572. As provas iniciais adicionais
+chegaram; não estão somadas aos 30 marcadores de cada execução. Testaram a imagem
+antiga contra schema temporário já atualizado pela primeira candidata, sem rewinding
+chaves/sessões. Isso demonstra compatibilidade local de leitura/conexão do rollback.
 
-## Comparação antes e depois
+## Comparação antes e depois (atualizar após execução da candidata)
 
-| Medida | Referência `main` / imagem atual | Candidato |
+| Medida | Referência / imagem atual | Candidata |
 |---|---|---|
-| Identidade | `8d77799`; imagem local identificada acima | Não criado |
-| Licença local | **Ativa — ativação pelo Tuan, conferida às 14:43 BRT** | Não executado |
-| QR/pareamento dos dois números de teste | Concluído; ambos autenticados após preparação | Não executado |
-| Ciclos confirmados de reconexão | **10/10 por API + 10/10 por socket**; detalhes nas tabelas acima | Não executado |
-| Reconexões com `OfflineSyncCompleted` | **Medição anterior inválida — contador corrigido e referência em repetição** | Não executado |
-| Mensagens antes/durante/depois recebidas no webhook | **30/30 por método (60/60)**, além das provas iniciais | Não executado |
-| Mensagens de saída recebidas no remetente | **10/10 por método (20/20)** | Não executado |
-| Reinícios por Disconnected | 0 no método API; **10 induzidos** no método socket | Não executado |
-| Panics e erros de stream do processo | **0 e 0** nas janelas | Não executado |
-| Teste de duração ≥ 2 horas | Não executado | Não executado |
-| Envio texto/mídia e recepção texto/áudio/imagem | Não executado | Não executado |
-| Build, vet e suíte Go | Não executado | Não executado |
-| Revisão Codex | Não executado | Não executado |
+| Identidade | main 8d77799; b572; imagem local/prod digest registrado | c883 + patches de lifecycle em validação |
+| QR/pareamento dos números | Dois pareados | Ambos retomados; QR adicional novo autenticou e recebeu prova na SDK nova |
+| Ciclos confirmados de reconexão | 10/10 API + 10/10 socket | Não executado |
+| OfflineSyncCompleted | 20/20 nas repetições corretas | Não executado |
+| Mensagens antes/durante/depois no webhook | 60/60 | Não executado |
+| Saída recebida no outro número | 20/20 | Não executado |
+| Reinícios por Disconnected | 0 API; 10 socket induzidos | Não executado |
+| Panics / erros de stream | 0 / 0 | Não executado |
+| Texto/imagem/áudio bidirecional | Prova curta 6/6 | Somente prova textual do QR adicional; lote completo pendente |
+| Tráfego periódico ≥2h | Não executado na referência | Não executado |
+| Build / vet / suíte / race | Testes existentes preservados | Passaram após rodada2; candidata final pendente revisão/ciclos |
+| Revisão Codex | Não se aplica | R1: 2P1+2P2; R2: 1P1+2P2; R3 iniciada |
 
-## Conclusões e decisões em aberto
+## Conclusão causal atual
 
-A hipótese da whatsmeow defasada permanece sem teste causal. Dez reconexões por
-API e dez quedas reais de TCP não reproduziram a perda de recebimento, apesar da
-falta de Completed. Não há correção nem conclusão de estabilidade de duas horas.
-Tuan propôs seguir com a correção na biblioteca; a Fase 2 foi retomada como
-candidata experimental. Fases 3 a 5 permanecem pendentes. A conclusão final e o
-eventual PR deverão distinguir validação local de confirmação da causa de produção.
+O congelamento relatado na produção não foi reproduzido em nenhum dos dois métodos.
+Na referência medida corretamente, a sincronização terminou e mensagens chegaram.
+A hipótese da biblioteca defasada não está confirmada nem descartada. Atualização
+oficial e correções demonstradas nos testes são uma candidata experimental autorizada
+pelo Tuan; compatibilidade local não provará que o incidente de produção foi resolvido.
 
 ## Fase 2 — checks e adaptação de API (17:26 BRT)
 
@@ -736,3 +740,36 @@ eventual PR deverão distinguir validação local de confirmação da causa de p
   completam sem isso. Candidata final ainda precisa dos seus ciclos e duração.
 - Preparar commit/rodada3 e rebuild. API local ainda roda imagem 635d..., com QR
   validado; não iniciar duração enquanto houver alteração de código da candidata.
+
+## Terceira revisão e primeiros ciclos da candidata (18:06 BRT)
+
+- Imagem local 4a137f1 construída em linux/amd64,
+  sha256:db384371e4b0186174798c5442dcc76665c1c3b4aacc7fcdfc6a4f6ad06d41c7.
+  Ambos devices retomaram autenticados; companion do QR adicional ficou salvo,
+  sem retomar durante comparação, preservando dois clientes ativos como referência.
+- API after-72be3eb9: 10/10 ciclos/Completed, entrada30/30, saída10/10, zero
+  panics/stream errors. Não é imagem final: novo patch abaixo exige nova execução.
+- Observação: cancelamento deliberado emite callback Disconnected antigo; log de
+  automatic_restart nessa imagem contou tentativas antes de verificar geração, não
+  novos sockets. Teste reproduziu escrita de status false por geração cancelada;
+  fix ignora Disconnected dessa geração antes de alterar DB/cache ou emitir evento.
+- Rodada3 Codex: 2P2, sem P1, ambos aceitos. Callback de uma geração nova podia
+  compartilhar job anterior sem ter sido recuperado; resultado agora identifica
+  cliente aposentado e reavalia quando job compartilhado pertencia a outro.
+  Teste RED perdeu recovery da geração nova, GREEN aposentou-a corretamente.
+- UpdateInstanceSettings agora rejeita contexto já cancelado; Connect segue então
+  caminho de iniciar/aguardar substituto, em vez de reconhecer worker morrendo como
+  conexão pronta. Teste RED retornou sucesso em worker cancelado; GREEN erro de
+  indisponibilidade esperado. Primeiros fixtures tinham cache ausente e foram
+  completados antes de medir o vermelho comportamental; panic de fixture não é prova.
+- Checks completos em execução após esses fixes; preparar rodada4 e rebuild.
+  Nenhum teste de duração iniciado, nenhum deploy/publicação/push.
+
+## Checks após rodada3 (18:08 BRT)
+
+- go build ./..., go vet ./..., go test ./...: código0 após todos os fixes.
+- go test -race nos três pacotes alterados: código0. Duas regressões Python: verdes.
+- Candidata intermediária after-72be3eb9 anotada como intermediária e com limitação
+  do contador de tentativas de callback. Não usar essa linha como taxa de quedas.
+- Preparar rodada4 no novo commit e rebuild, preservando somente dois clientes
+  usados pela comparação. QR adicional já foi confirmado sem novo pedido ao Tuan.

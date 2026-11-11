@@ -397,3 +397,87 @@ func TestStartClientWaitsForRetiringReservation(t *testing.T) {
 		<-value.(*clientRun).stopped
 	}
 }
+
+type disconnectedRecordingRepository struct {
+	instance_repository.InstanceRepository
+	writes atomic.Int32
+}
+
+func (r *disconnectedRecordingRepository) UpdateConnected(string, bool, string) error {
+	r.writes.Add(1)
+	return nil
+}
+
+func TestCanceledDisconnectCannotOverwriteReplacementStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	repo := &disconnectedRecordingRepository{}
+	client := &MyClient{ctx: ctx, userID: "test", Instance: &instance_model.Instance{Id: "test"},
+		instanceRepository: repo, userInfoCache: cache.New(time.Minute, time.Minute), config: cfg,
+		loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		service:       &disconnectedCaptureService{archiveCaptureService: archiveCaptureService{calls: make(chan archiveWebhookCall, 1)}},
+	}
+	client.myEventHandler(&events.Disconnected{})
+	if repo.writes.Load() != 0 {
+		t.Fatal("canceled generation overwrote the replacement's connection status")
+	}
+}
+
+type disconnectedCaptureService struct{ archiveCaptureService }
+
+func (*disconnectedCaptureService) ReconnectClient(string) error { return nil }
+
+func TestReconnectDoesNotLoseNewGenerationJoiningOlderJob(t *testing.T) {
+	readyForReconnectTest(t)
+	old := whatsmeow.NewClient(&store.Device{}, nil)
+	replacement := whatsmeow.NewClient(&store.Device{}, nil)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	stop := errors.New("controlled store stop")
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{clientPointer: map[string]*whatsmeow.Client{"test": old},
+		loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+			if calls.Add(1) == 1 {
+				close(entered)
+				<-release
+			}
+			return nil, stop
+		}}}
+	results := make(chan error, 2)
+	go func() { results <- w.reconnectClient("test", old) }()
+	<-entered
+	// Another connect publishes a new generation during the first job's I/O.
+	w.clientPointer["test"] = replacement
+	joining := make(chan struct{})
+	go func() { close(joining); results <- w.reconnectClient("test", replacement) }()
+	<-joining
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	for range 2 {
+		select {
+		case <-results:
+		case <-time.After(2 * time.Second):
+			t.Fatal("reconnect did not finish")
+		}
+	}
+	if !replacement.DangerousInternals().IsExpectedDisconnect() {
+		t.Fatal("new generation's recovery joined the old job and was silently lost")
+	}
+}
+
+func TestRuntimeSettingsRejectRetiringGeneration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		userInfoCache:   cache.New(time.Minute, time.Minute),
+		myClientPointer: map[string]*MyClient{"test": {ctx: ctx, WAClient: whatsmeow.NewClient(&store.Device{}, nil)}},
+		instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+			return &instance_model.Instance{Id: "test"}, nil
+		}}}
+	if err := w.UpdateInstanceSettings("test"); err == nil {
+		t.Fatal("connect fast path accepted a worker that is already retiring")
+	}
+}
