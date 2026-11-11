@@ -552,3 +552,49 @@ func TestRepeatedStartPreservesLatestPendingSettings(t *testing.T) {
 		})
 	}
 }
+
+func TestSharedStartPreservesGlobalProxyFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name, proxy, global string
+		want                bool
+	}{
+		{"null_global", "null", "global-proxy.invalid", true},
+		{"empty_object_global", "{}", "global-proxy.invalid", true},
+		{"empty_string_global", "", "global-proxy.invalid", true},
+		{"no_proxy", "null", "", false},
+		{"instance_proxy", `{"host":"instance-proxy.invalid","port":"8080"}`, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			readyForReconnectTest(t)
+			cfg := &config.Config{LogDirectory: t.TempDir(), ProxyHost: tc.global, ProxyPort: "8080", ProxyProtocol: "http"}
+			w := &whatsmeowService{config: cfg, loggerWrapper: logger_wrapper.NewLoggerManager(cfg), userInfoCache: cache.New(time.Minute, time.Minute),
+				instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+					return &instance_model.Instance{Id: "test", Proxy: tc.proxy}, nil
+				}}}
+			// Pause real startup before SQL/SDK work. Inspect the route chosen by
+			// StartInstance, then cancel before releasing it: no network is used.
+			w.deviceStore.mu.Lock()
+			var run *clientRun
+			t.Cleanup(func() {
+				if run != nil {
+					run.cancel()
+				}
+				w.deviceStore.mu.Unlock()
+				if run != nil {
+					<-run.stopped
+				}
+			})
+			if err := w.StartInstance("test"); err != nil {
+				t.Fatal(err)
+			}
+			value, exists := w.starts.Load("test")
+			if !exists {
+				t.Fatal("start was not reserved")
+			}
+			run = value.(*clientRun)
+			if run.data.IsProxy != tc.want {
+				t.Fatalf("shared start proxy route=%v; want %v", run.data.IsProxy, tc.want)
+			}
+		})
+	}
+}

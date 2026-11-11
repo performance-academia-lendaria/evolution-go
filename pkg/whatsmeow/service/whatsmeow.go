@@ -510,10 +510,11 @@ func (w *whatsmeowService) runClient(cd *ClientData, run *clientRun) {
 
 		if cd.IsProxy {
 			var proxyConfig ProxyConfig
-			err := json.Unmarshal([]byte(cd.Instance.Proxy), &proxyConfig)
-			if err != nil {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] error unmarshalling proxy config", cd.Instance.Id)
-				return false
+			if cd.Instance.Proxy != "" {
+				if err := json.Unmarshal([]byte(cd.Instance.Proxy), &proxyConfig); err != nil {
+					w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] error unmarshalling proxy config", cd.Instance.Id)
+					return false
+				}
 			}
 
 			proxyProtocol := proxyConfig.Protocol
@@ -2551,7 +2552,7 @@ func (w *whatsmeowService) startInstance(instanceId string) error {
 		Instance:      instance,
 		Subscriptions: subscribedEvents,
 		Phone:         "",
-		IsProxy:       false,
+		IsProxy:       w.config.ProxyHost != "",
 	}
 
 	if instance.Proxy != "" {

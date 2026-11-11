@@ -2,33 +2,36 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 18:28 BRT / 21:28 UTC. Fases2/3/4 em andamento.
+Atualizado em 2026-11-11, 18:44 BRT / 21:44 UTC. Fases2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
   não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
   não ler/modificar/adicionar untitled.md. Nenhum push/PR.
-- **Código:** HEAD1bd56bfdd1899196814abbdf102d8c00daff52cd. SDKc88388f,
+- **Código:** HEADea877fb644c7f455aef60407159c25ab1c8db6a0. User/check PN/LID adaptado,
+  testes e checks completos passaram após correção. SDKc88388f,
   Go mínimo1.26, DockerBuilder1.26.5. Mutex porID cobre iniciar/reconectar/retirar;
   pedidos de settings pendentes preservados na publicação; Disconnect aguarda
   encerramento. Archive e blocklist corrigidos, handshake do fork preservado.
 - **Checks:** build/vet/test completos e race dos três serviços passaram apósR4;
   regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
-- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; todos aceitos/corrigidos.
-  R5 em execução (sessão69210), snapshot limpo build/offline-sync-review em1bd56bf.
-  Não modificar snapshot enquanto roda. Ainda SEM rodada limpa. Decisões em
-  .code-review-log/fix-whatsmeow-offline-sync.md; relatórios round-1.txt...round-5.txt.
+- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; todos
+  aceitos/corrigidos. R6 em execução (sessão12249), snapshot limpo emea877fb.
+  Não modificar build/offline-sync-review enquanto ativa. Ainda SEM rodada limpa.
+  Log .code-review-log/fix-whatsmeow-offline-sync.md e relatórios round-1...6.txt.
 - **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
   Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
   contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual:** construir imagem1bd56bf (sessão58927, candidate-build-round4.log).
-  API local ainda5b0e96e, ID8d7165a354a9e03bb48b61d1d2db1a0af120fdf8463a080f19ab91f71901096f.
-  Essa imagem passou API92222051 e socketaf051f2f, 10ciclos cada, Completed20/20,
-  entrada60/60, saída20/20, sem panics/stream errors. Mídia curta c5e7d566 passou6/6.
-  Resultados INTERMEDIÁRIOS pois código mudou depois. Nenhum experimento ativo agora.
-  Nova imagem deve repetir ambos ciclos/mídia e só então iniciar duração≥7200s.
+- **Etapa atual:** ea877fb construído linux/amd64, tag local candidata,
+  ID12bfe23376cd574c82b2df45e2ac5206fa8b36766cc9e076fdde7702b67bf170.
+  Trocar apenas API local (operação registrada nesta sessão), retomar
+  duas sessões e validar HTTP user/check verde + envio defaultFormat antes dos
+  mesmos ciclos e mídia/duração. Build terminou0 (sessão46380 encerrada).
+- **Intermediários:**1bd56bf API4e718ba0/socket4ec7cd29 passaram20/20 Completed,
+  entrada60/60 e saída20/20; PN/LIDAPI nessa imagem falhou e foi corrigida depois.
+  Nenhum experimento ativo. Duração≥7200s ainda NÃO começou; não somar tempo ocioso.
 - **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
   local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
   NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
@@ -894,3 +897,26 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   padrão, repetição dos ciclos e mídia e duração contínua≥7200s, sem abreviar.
 - Relatório consolidado preparado como RASCUNHO em whatsmeow-validation.md;
   campos pendentes permanecem explícitos e serão preenchidos com execução final.
+
+## Sexta revisão e proxy global (18:52 BRT)
+
+- Rodada6: 1P2, globalproxy perdido quando ForceReconnect passou ao caminho comum
+  e instância tinha Proxy="null". Aceito e corrigido; demais caminhos reviewer não
+  apontou novos achados. Roteamento global preservado inclusive string vazia/objeto
+  vazio e sem credenciais (proxy pode não usar autenticação).
+- Teste real de seleção StartInstance pausa inicialização antes de SQL/SDK, captura
+  ClientData, cancela/aguarda worker sem rede. RED nas3formas vazias com globalproxy;
+  GREEN nos5casos (global3, semproxy, proxy de instância). Construção do cliente
+  aceita configuração de instância omitida e usa fallback global já existente.
+- Imagemea877fb passou HTTP PN/LID verde e envio textual defaultformat recebido.
+  API after-450d363f passou10/10 Completed, entrada30/30 e saída10/10; sem panics,
+  streams ou callbacks indevidos. Código de proxy alterado depois, logo manter
+  relatório intermediário. Preparar checks/rodada7/rebuild e repetir comparação.
+- Nenhuma duração de2h foi iniciada. Nenhuma alteração em produção/publicação/push.
+
+## Checks do fallback global (18:55 BRT)
+
+- Build/vet/suíte completos e race dos três serviços passaram após ajuste do proxy.
+- Preparar rodada7 no próximo commit, mesma configuração do Codex, e rebuildlocal.
+  Sem novas alterações de estratégia/flags da SDK. Referência continua válida;
+  repetir os10ciclos de cada método na imagem que vier com revisão limpa.
