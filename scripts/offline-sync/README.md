@@ -1,8 +1,8 @@
 # Laboratório local de sincronização offline
 
-Estado: preparação da Fase 1. O bootstrap e o receptor estão implementados; o
-pareamento, os ciclos e a medição ainda dependem dos pré-requisitos e não foram
-executados. Este diretório não representa uma reprodução concluída.
+Estado: Fase 1. Bootstrap, receptor, pareamento e experimento automatizado estão
+implementados. Consultar o diário para saber quais execuções realmente ocorreram;
+a existência do roteiro não significa reprodução ou validação concluída.
 
 O [plano](../../docs/plans/fix-whatsmeow-offline-sync.md) define todas as fases e
 critérios; o [diário](../../docs/investigations/2026-11-11-whatsmeow-offline-sync.md)
@@ -54,10 +54,60 @@ containers. Os arquivos em `build/offline-sync-lab/` são preservados para limpe
 local explícita após conferir quais evidências devem permanecer. Não executar
 limpeza durante o experimento ou enquanto a ativação local estiver em uso.
 
-## Próxima etapa do roteiro
+## Parear os dois números de teste
 
-Depois de confirmar licença e disponibilidade do número exclusivo, implementar
-pareamento sem exposição de token e ciclos com restauração garantida da rede de
-saída, correlação dos eventos e confirmação dos marcadores pelo remetente. Fixar
-janelas antes da primeira medição, executar ao menos dez ciclos e registrar o
-resultado de referência antes de qualquer atualização da whatsmeow.
+Após ativar a licença local pelo manager, criar as duas instâncias e abrir a página:
+
+```sh
+python3 scripts/offline-sync/lab.py pair
+python3 scripts/offline-sync/lab.py qr-page
+```
+
+Abrir `http://127.0.0.1:18081` e parear `target` (receptor) e `sender` (remetente)
+com dois números exclusivos de teste distintos. A página lê a imagem armazenada,
+separa o PNG do código bruto e atualiza automaticamente. Não chama
+`GET /instance/qr`, que pode iniciar outro cliente. Pareamento salvo e autenticação
+ativa aparecem como estados distintos. O estado sanitizado também pode ser
+consultado com `lab.py status`.
+
+Se a API local tiver sido reiniciada deliberadamente, preservar o banco e retomar
+as sessões já pareadas com `python3 scripts/offline-sync/lab.py connect`.
+Esse comando não faz logout nem cria outro device e recusa iniciar outro cliente
+quando já existe conexão não autenticada; investigar antes de contornar esse caso.
+
+## Executar os ciclos e consultar os resultados
+
+Com os dois números autenticados e o receptor de webhook ativo:
+
+```sh
+python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180
+```
+
+O roteiro envia apenas marcadores artificiais entre os dois números de teste.
+Cada ciclo confirma recebimento antes, chama `POST /instance/reconnect` no receptor,
+confirma a janela offline, envia durante e depois da queda e verifica uma mensagem
+de saída do receptor para o remetente. O endpoint chama o `ReconnectClient`
+original; banco, webhook e remetente permanecem disponíveis. Nenhuma rede é alterada
+por esse método. O atraso de restart é o da aplicação original (2 segundos).
+
+O marcador durante a queda só é válido se a aceitação do envio terminar antes de
+o receptor reconectar. Caso contrário, o roteiro para como inconclusivo. O tempo
+para entrega inicial e marcador antes é 30 segundos. A recuperação e observação
+após cada reconexão usam janela de 180 segundos, igual para referência e candidato.
+O código não altera temporizadores nem comportamento da imagem testada.
+
+Os resultados são gravados depois de cada etapa em
+`build/offline-sync-lab/results/` (JSON sem credenciais) e em um Markdown por
+execução em `docs/investigations/2026-11-11-offline-sync-<label>-<run>.md`.
+O receptor correlaciona por hash da instância e por marcador e distingue mensagens
+recebidas das próprias; ecos de envio do remetente não contam como recebimento.
+Só contagens selecionadas são extraídas dos logs. Panics e erros de stream da
+biblioteca sem ID são classificados como do processo, sem atribuição inventada.
+
+Se houver `Connected`, prévia sem conclusão, perda de mensagens e envio do receptor
+funcionando, a execução preserva a sessão com falha e para com `incident_reproduced`.
+Falha inicial, autenticação perdida ou janela não confirmada encerram como
+`stopped`, sem equivaler a reprodução válida. Dez ciclos sem o incidente encerram
+como `not_reproduced`: parar e consultar o Tuan antes de atualizar a whatsmeow.
+Não recuperar uma sessão com defeito automaticamente nem iniciar nova execução
+concorrente sobre as mesmas instâncias.

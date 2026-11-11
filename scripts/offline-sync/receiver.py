@@ -11,7 +11,7 @@ import time
 
 
 EVENTS = {"Connected", "Disconnected", "Message", "Receipt", "SendMessage", "PairSuccess"}
-MARKER = re.compile(r"EVOSYNC-[a-f0-9]{8}-C[0-9]{2}-(before|during|after)")
+MARKER = re.compile(r"EVOSYNC-[a-f0-9]{8}-C[0-9]{2}-(before|during|after|outbound)")
 
 
 class Receiver(BaseHTTPRequestHandler):
@@ -33,10 +33,13 @@ class Receiver(BaseHTTPRequestHandler):
             message = data.get("Message", {}) if isinstance(data, dict) else {}
             event = payload.get("event")
             record = {"received_utc": time.time(), "event": event if event in EVENTS else "Other"}
+            instance_id = str(payload.get("instanceId", ""))
+            record["instance_id_sha256"] = hashlib.sha256(instance_id.encode()).hexdigest()
             if event == "Message":
                 identifier = str(info.get("ID", ""))
                 record["message_id_sha256"] = hashlib.sha256(identifier.encode()).hexdigest() if identifier else None
-                record["from_me"] = info.get("IsFromMe") is True
+                own = info.get("IsFromMe")
+                record["from_me"] = own if isinstance(own, bool) else None
                 record["kind"] = "other"
                 for field, kind in (("audioMessage", "audio"), ("imageMessage", "image"),
                                     ("conversation", "text"), ("extendedTextMessage", "text")):

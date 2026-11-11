@@ -2,21 +2,20 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 14:42 BRT / 17:42 UTC.
+Atualizado em 2026-11-11, 15:00 BRT / 18:00 UTC.
 
-- **Etapa atual:** preparação da Fase 1 **bloqueada por licença local inativa**.
+- **Etapa atual:** Fase 1; licença local **ativa**, pareamento/ciclos em preparação.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** aguardar a ativação local pelo Tuan e a confirmação da
-  disponibilidade dos dois números. Não fazer ativação nem contornar o gate. Após
-  a resposta, consultar `python3 scripts/offline-sync/lab.py status` e retomar
-  preparação do pareamento/ciclos. Não iniciar Fase 2 sem reprodução registrada.
-- **Dependência do Tuan:** confirmar número exclusivo de teste disponível para QR
-  e outro remetente para enviar mensagens nas janelas de queda/recuperação. A
-  pergunta foi feita; a resposta recebida pediu documentação prévia e ainda não
-  confirmou a disponibilidade dos números.
+- **Próximo passo:** executar a referência com
+  `python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180`.
+  As duas sessões foram retomadas sem novo QR e estão autenticadas. Roteiro e
+  receptor passaram nas verificações preparatórias descritas abaixo.
+  Não iniciar Fase 2 sem reprodução válida.
+- **Dependência do Tuan:** dois números exclusivos de teste confirmados e ambos
+  pareados. Não é necessário novo QR para as sessões já salvas.
 - **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
   `evo-offline-sync-lab-receiver` e `evo-offline-sync-lab-postgres`; redes
   `evo-offline-sync-lab-data` (interna) e `evo-offline-sync-lab-egress` (saída).
@@ -26,8 +25,9 @@ Atualizado em 2026-11-11, 14:42 BRT / 17:42 UTC.
 - **Estado local restrito e ignorado:** `build/offline-sync-lab/`; `api.env` e
   `postgres.env` contêm apenas credenciais novas do laboratório e não devem ser
   impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
-- **Processos em execução:** os três containers acima; nenhum comando de teste
-  ou revisão em background. O bootstrap terminou com código 1 pelo gate de licença.
+- **Processos em execução:** os três containers acima e a página auxiliar
+  `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
+  `57886`. Nenhum experimento de ciclos ou revisão em background.
 - **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
   administrativa do laboratório foi copiada para a área de transferência e, após
   autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
@@ -159,12 +159,102 @@ telefones, payloads completos ou conteúdo de mensagem.
 - Observado `untitled.md` não rastreado; arquivo não aberto, alterado ou incluído
   em commits, assim como o `AGENTS.md` preexistente.
 
+### 2026-11-11, 14:43 BRT — Licença ativada pelo Tuan e conferida
+
+- Tuan informou que ativou a licença local. `python3 scripts/offline-sync/lab.py status`
+  retornou os três containers `running` e `license: active`.
+- Nenhuma chave de licença foi lida ou exibida nessa conferência; apenas o campo
+  de estado foi retornado. Nenhum restart ou alteração de configuração executado.
+- Bloqueio de licença resolvido. Retomada da preparação do roteiro da Fase 1;
+  nenhum pareamento/ciclo ainda iniciado.
+- Pergunta pendente ao Tuan: envio manual pelo segundo celular, dois números de
+  teste pareáveis para automatização, ou indisponibilidade dos números agora.
+  A escolha não altera a exigência de teste exclusivamente local e descartável.
+
+### 2026-11-11 — Dois números confirmados e preparação dos QRs
+
+- Tuan confirmou dois números exclusivos de teste e se disponibilizou a parear
+  ambos para automatizar o tráfego. Pré-requisito de números disponível.
+- Decisão: criar `offline-sync-target` (receptor) e `offline-sync-sender` (remetente)
+  no laboratório existente, com webhook exclusivamente local. Não usar produção.
+- O roteiro `pair` cria IDs/tokens antes da escrita na API, verifica duplicatas e
+  recupera QRs em arquivos locais restritos. Não imprime tokens nem telefones.
+- Para as quedas de rede com remetente disponível, preparar conexão intermediária
+  exclusiva do receptor; não derrubar toda a rede da API compartilhada pelos dois.
+  Essa preparação ainda não foi executada e não altera código da aplicação.
+- Fonte primária local da biblioteca: `OfflineSyncPreview` anuncia eventos
+  perdidos; `OfflineSyncCompleted` indica término do envio pelo servidor. O
+  experimento deverá criar mensagens durante a queda, sem presumir backlog.
+- Nenhuma medição de reconexão começou. Primeiro apresentar os QRs ao Tuan.
+
+### 2026-11-11, 14:47 a 14:55 BRT — Pareamentos e correções do roteiro
+
+- QRs PNG gerados pelo roteiro às 14:47 e apresentados ao Tuan. Página auxiliar
+  local em `http://127.0.0.1:18081`, sem tokens no navegador e com atualização
+  automática dos QRs. Processo antigo da página substituído após corrigir a exibição.
+- Erro introduzido pelo agente na página: `Instance.Qrcode` armazena
+  `PNG data URI|código bruto`, e a página tentou usar a composição toda como imagem.
+  Corrigido para usar apenas a primeira parte. PNG obtido de `/state` decodificado
+  com `base64.b64decode(validate=True)` e assinatura PNG conferida; exibição anterior
+  falhou no navegador, conforme screenshot enviado pelo Tuan.
+- Remetente pareado às 14:48:43 BRT; receptor às 14:54:01 BRT. Eventos `PairSuccess`
+  vistos em contagem/cronologia sanitizadas. PostgreSQL local contém dois devices
+  (`SELECT count(*) FROM whatsmeow_device`), sem leitura de chaves ou telefones.
+- Às 14:54:45 BRT o receptor está `Connected=true, LoggedIn=true`; remetente tem
+  JID salvo mas `LoggedIn=false`. A página distingue pareamento salvo de autenticação
+  ativa e não oferece novamente o QR de uma sessão já registrada.
+- Encontrado segundo erro do roteiro inicial: `POST /instance/connect` seguido
+  imediatamente por `GET /instance/qr` pode criar dois clientes, pois o GET inicia
+  uma instância se o cliente assíncrono ainda não foi registrado. Logs mostram duas
+  inicializações de cada papel às 14:47 e dois devices novos para o remetente.
+- Um cliente não pareado continuou rotacionando QR e reiniciando com dados antigos,
+  enquanto o outro já havia pareado. Essa preparação é **inconclusiva como referência**
+  para o incidente e não conta entre os dez ciclos.
+- O remetente também teve uma queda espontânea, novo Connected e OfflineSyncPreview
+  sem OfflineSyncCompleted observado. Há interferência de clientes duplicados;
+  esse achado não prova o incidente nem a hipótese de biblioteca defasada.
+- Corrigido o roteiro para ler o QR via `GET /instance/info/:id`, sem chamar o GET
+  mutante. Adicionado comando `connect` para reutilizar somente sessões salvas.
+- Decisão: reiniciar somente `evo-offline-sync-lab-api` para eliminar as goroutines
+  antigas e reconectar ambos com os dois devices persistidos. Sem logout, exclusão,
+  limpeza de banco, ativação nova, alteração de imagem ou acesso à produção.
+- Método escolhido para os ciclos: `POST /instance/reconnect` exclusivamente no
+  receptor, que chama `ReconnectClient` e mantém o remetente disponível na mesma
+  API. É uma das alternativas autorizadas no plano original. A conexão intermediária
+  cogitada antes não foi implementada nem usada.
+
+### 2026-11-11, 14:57 a 15:00 BRT — Sessões retomadas e roteiro de referência pronto
+
+- Executado restart somente da API local, na mesma imagem por ID; PostgreSQL,
+  licença, ambos os devices e receptor de webhook preservados.
+- `lab.py connect` iniciou uma conexão por papel, usando os devices salvos e sem
+  solicitar QR. Conferência posterior: `Connected=true, LoggedIn=true` para ambos,
+  licença `active`. Nenhum telefone ou token exibido.
+- Criado `scripts/offline-sync/experiment.py` para envio automatizado, reconexão
+  dirigida ao receptor e relatório incremental por execução. Mesma imagem e mesma
+  biblioteca da referência, sem alteração em código Go, dependências ou timers.
+- Configuração de medição fixada antes da execução: dez ciclos; 30 segundos para
+  entrega inicial/antes; 180 segundos para recuperação e observação após reconexão.
+  A janela de queda vem do `ReconnectClient` original (sleep de 2 segundos).
+  Envio durante só conta se a aceitação acabar com o receptor ainda offline.
+- Recebimento é correlacionado por hash da instância, mensagem não própria e marcador
+  artificial. Remetente e receptor usam os mesmos webhook/banco descartáveis.
+- Atualizado e reiniciado somente o receptor local para acrescentar hash da
+  instância e direção desconhecida explícita; isso ocorreu antes de medir tráfego.
+- Smoke de HTTP/privacidade: payload sintético retornou 204; registro contém hashes,
+  mas não o token, ID bruto, identificador da instância, chat nem conteúdo livre
+  usados na prova. Marcador não correspondente não foi salvo como texto.
+- `ast.parse` dos três scripts: sintaxe válida. A leitura dos logs é programática,
+  com saída somente de contagens, sem salvar/imprimir linhas ou payloads brutos.
+- Relatórios Markdown e JSON serão atualizados após cada etapa/ciclo. Sem novo QR,
+  logout, exclusão, mudança de versão, push ou acesso à produção.
+
 ## Comparação antes e depois
 
 | Medida | Referência `main` / imagem atual | Candidato |
 |---|---|---|
 | Identidade | `8d77799`; imagem local identificada acima | Não criado |
-| Licença local | **Inativa — bloqueio confirmado** | Não executado |
+| Licença local | **Ativa — ativação pelo Tuan, conferida às 14:43 BRT** | Não executado |
 | QR/pareamento do número de teste | Não executado | Não executado |
 | Ciclos confirmados de reconexão | 0 / mínimo 10 | Não executado |
 | Reconexões com `OfflineSyncCompleted` | Não executado | Não executado |

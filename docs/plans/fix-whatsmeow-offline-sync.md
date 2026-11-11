@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11, 14:26 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-11, 14:43 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -11,9 +11,10 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** bloqueado no pré-requisito de licença local inativa. O ambiente
-descartável está em execução; reprodução ainda não iniciada. Aguardar orientação
-do Tuan, sem ativar licença ou contornar o bloqueio.
+**Estado atual:** licença ativada pelo Tuan e estado `active` conferido localmente.
+O ambiente descartável está em execução; preparar pareamento e roteiro de ciclos,
+aguardando confirmação de disponibilidade/modalidade do segundo número de teste.
+Reprodução ainda não iniciada.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -73,10 +74,11 @@ seção de 2026-11-11.
 - [x] Ler as instruções do repositório, a investigação e a skill de revisão.
 - [x] Criar a branch solicitada a partir de `main`.
 - [x] Registrar o plano completo, limites, critérios e ponto de retomada.
-- [ ] Confirmar disponibilidade do número de teste e de outro remetente.
+- [x] Confirmar disponibilidade do número de teste e de outro remetente. Tuan
+  disponibilizou e pareou ambos; usar remetente local para tráfego automatizado.
 - [x] Preparar bootstrap do laboratório e conferir estado da licença sem expor chave.
-- [ ] Resolver com o Tuan o bloqueio de licença local inativa. Pareamento e ciclos
-  do roteiro ainda estão pendentes.
+- [x] Resolver com o Tuan o bloqueio de licença local inativa. Ativada por ele e
+  conferida pelo agente em 2026-11-11, 14:43 BRT. Pareamento e ciclos pendentes.
 
 ## Fase 1 — Reprodução antes da correção
 
@@ -91,9 +93,11 @@ seção de 2026-11-11.
 3. Usar nomes exclusivos e identificação de propriedade dos recursos Docker.
    Validar que o daemon é local. Subir PostgreSQL temporário e receptor local,
    sem montar dados, arquivos, volumes ou segredos de produção.
-4. Manter API, banco e receptor em rede interna. Usar uma segunda rede somente
-   para a saída da API. Forçar a queda dessa saída preservando banco e webhook.
-   A restauração da rede deve ocorrer mesmo se o roteiro for interrompido.
+4. Manter API, banco e receptor em rede interna e uma segunda rede para a saída
+   da API. Com dois números no mesmo processo, usar inicialmente a rota local
+   `/instance/reconnect` para disparar `ReconnectClient` somente no receptor,
+   preservando remetente, banco e webhook. Se um teste de rede separado for
+   autorizado posteriormente, garantir restauração mesmo em interrupção.
 5. Restringir portas publicadas ao loopback. Guardar estado sensível somente em
    diretório local ignorado (`build/offline-sync-lab/`) com acesso restrito.
 6. Consultar apenas o estado da licença. Se inativa, parar e pedir orientação;
