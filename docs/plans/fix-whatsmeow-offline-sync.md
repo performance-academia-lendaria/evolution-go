@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11, 14:43 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-11, 15:01 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -11,10 +11,10 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** licença ativada pelo Tuan e estado `active` conferido localmente.
-O ambiente descartável está em execução; preparar pareamento e roteiro de ciclos,
-aguardando confirmação de disponibilidade/modalidade do segundo número de teste.
-Reprodução ainda não iniciada.
+**Estado atual:** dois números de teste pareados e autenticados; licença ativa.
+Roteiro pronto e referência `before-588b5cb3` em execução, com relatório incremental
+ligado ao diário. Primeiro ciclo entregou todos os marcadores, ainda sem conclusão
+da janela de observação. Nenhuma atualização de biblioteca ou correção Go iniciada.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,

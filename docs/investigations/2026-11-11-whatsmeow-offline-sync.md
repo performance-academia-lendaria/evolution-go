@@ -2,18 +2,20 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 15:00 BRT / 18:00 UTC.
+Atualizado em 2026-11-11, 15:10 BRT / 18:10 UTC. O relatório da execução é atualizado
+automaticamente durante os ciclos.
 
 - **Etapa atual:** Fase 1; licença local **ativa**, pareamento/ciclos em preparação.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** executar a referência com
-  `python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180`.
-  As duas sessões foram retomadas sem novo QR e estão autenticadas. Roteiro e
-  receptor passaram nas verificações preparatórias descritas abaixo.
-  Não iniciar Fase 2 sem reprodução válida.
+- **Próximo passo:** acompanhar a referência em execução, sessão `58062`, iniciada
+  com `python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180`.
+  Relatório incremental:
+  [antes 588b5cb3](2026-11-11-offline-sync-before-588b5cb3.md).
+  JSON local: `build/offline-sync-lab/results/before-588b5cb3.json`.
+  Não iniciar outra execução concorrente nem Fase 2 sem reprodução válida.
 - **Dependência do Tuan:** dois números exclusivos de teste confirmados e ambos
   pareados. Não é necessário novo QR para as sessões já salvas.
 - **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
@@ -27,7 +29,7 @@ Atualizado em 2026-11-11, 15:00 BRT / 18:00 UTC.
   impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
 - **Processos em execução:** os três containers acima e a página auxiliar
   `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
-  `57886`. Nenhum experimento de ciclos ou revisão em background.
+  `57886`; experimento de referência na sessão `58062`. Nenhuma revisão Codex.
 - **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
   administrativa do laboratório foi copiada para a área de transferência e, após
   autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
@@ -249,18 +251,63 @@ telefones, payloads completos ou conteúdo de mensagem.
 - Relatórios Markdown e JSON serão atualizados após cada etapa/ciclo. Sem novo QR,
   logout, exclusão, mudança de versão, push ou acesso à produção.
 
+### 2026-11-11, 15:01 BRT — Referência iniciada; primeiro ciclo em observação
+
+- Preparação salva no commit local
+  `90a273f test(whatsapp): automate local pairing and reconnect measurements`.
+- Confirmado diff vazio de `main` em `go.mod`, `go.sum`, `pkg/` e `cmd/`.
+  Somente documentação e roteiro local alterados nesta branch.
+- Execução `before-588b5cb3`, sessão `58062`, usando imagem local atual por ID.
+  Relatório incremental específico referenciado no ponto de retomada.
+- Prova inicial de envio do remetente até o webhook do receptor passou, antes de
+  iniciar os ciclos. No primeiro ciclo a queda foi observada; envio aceito em
+  0,673 s com receptor ainda offline; receptor reconectou e todos os marcadores
+  antes/durante/depois chegaram. Mensagem de saída do receptor chegou ao remetente.
+- No checkpoint, um `Connected`, um `OfflineSyncPreview`, zero `OfflineSyncCompleted`,
+  zero panics/erros de stream no período do ciclo; janela de 180 s ainda em curso.
+- Interpretação provisória: falta de `OfflineSyncCompleted` isolada não demonstra
+  interrupção de mensagens. O incidente completo ainda não foi reproduzido.
+
+### 2026-11-11, 15:04 BRT — Primeiro ciclo concluído; identidade do binário conferida
+
+- Ciclo 1 encerrou a janela de 180 s com entrega dos três marcadores e da mensagem
+  de saída, um Preview e zero Completed. Resultado `delivery_pass_sync_unobserved`;
+  nenhuma perda de mensagem demonstrada. Ciclo 2 começou automaticamente com os
+  mesmos parâmetros; acompanhar seu estado no relatório incremental.
+- Auditados metadados de build do executável `/app/server` copiado somente do
+  container **local**. Saída selecionada: Go `go1.25.0`, versão de fork
+  `0.7.2-0.1.0`, whatsmeow `v0.0.0-20260630180629-b572e5bcb92b`.
+- SHA-256 do executável:
+  `0c8c285749ed9f19a90b02ff1008b49585b8ebe842ca7011085e20e532e965bf`.
+  O build não embute revisão VCS; não há prova criptográfica de commit de fonte
+  por esse metadado. A referência é a imagem atual indicada pelo Tuan, fixada por ID.
+- Metadados selecionados em `build/offline-sync-lab/reference-binary-metadata.json`;
+  cópia temporária do binário removida ao final da auditoria. Nenhum arquivo na EC2.
+- Como Completed não apareceu, manter a janela completa de três minutos por ciclo
+  (aproximadamente meia hora para dez), sem encurtar o critério durante a medição.
+
+### 2026-11-11, 15:10 BRT — Três ciclos fechados; referência continua
+
+- Três quedas/reconexões dirigidas e três envios durante queda confirmados.
+- Recebimento no receptor: 9/9 marcadores de ciclo, além da prova inicial.
+  Recebimento no remetente: 3/3 provas de saída do receptor.
+- Nos três ciclos fechados: três Preview, zero Completed, zero panics e zero erros
+  de stream observados nas janelas. O quarto ciclo começou com os mesmos parâmetros.
+- Não há reprodução do congelamento do recebimento até este checkpoint. Continuar
+  até dez ciclos ou uma falha que exija a parada prevista no roteiro.
+
 ## Comparação antes e depois
 
 | Medida | Referência `main` / imagem atual | Candidato |
 |---|---|---|
 | Identidade | `8d77799`; imagem local identificada acima | Não criado |
 | Licença local | **Ativa — ativação pelo Tuan, conferida às 14:43 BRT** | Não executado |
-| QR/pareamento do número de teste | Não executado | Não executado |
-| Ciclos confirmados de reconexão | 0 / mínimo 10 | Não executado |
-| Reconexões com `OfflineSyncCompleted` | Não executado | Não executado |
-| Mensagens antes/durante/depois recebidas no webhook | Não executado | Não executado |
-| Quedas espontâneas por instância-hora | Não medido localmente | Não executado |
-| Panics | Não medido localmente | Não executado |
+| QR/pareamento dos dois números de teste | Concluído; ambos autenticados após preparação | Não executado |
+| Ciclos confirmados de reconexão | Em andamento; ver [relatório incremental](2026-11-11-offline-sync-before-588b5cb3.md) | Não executado |
+| Reconexões com `OfflineSyncCompleted` | Em medição no relatório incremental | Não executado |
+| Mensagens antes/durante/depois recebidas no webhook | Em medição no relatório incremental | Não executado |
+| Quedas espontâneas por instância-hora | Em medição no relatório incremental, separadas das forçadas | Não executado |
+| Panics | Em medição no relatório incremental | Não executado |
 | Teste de duração ≥ 2 horas | Não executado | Não executado |
 | Envio texto/mídia e recepção texto/áudio/imagem | Não executado | Não executado |
 | Build, vet e suíte Go | Não executado | Não executado |
