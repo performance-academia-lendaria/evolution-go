@@ -2,36 +2,40 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 18:44 BRT / 21:44 UTC. Fases2/3/4 em andamento.
+Atualizado em 2026-11-11, 19:25 BRT / 22:25 UTC. Fases2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
   não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
   não ler/modificar/adicionar untitled.md. Nenhum push/PR.
-- **Código:** HEADea877fb644c7f455aef60407159c25ab1c8db6a0. User/check PN/LID adaptado,
+- **Código:** HEADf072697f468b39b68bbc5b852582b9334e2903bb, incluindo fallback do proxy global. User/check PN/LID adaptado,
   testes e checks completos passaram após correção. SDKc88388f,
   Go mínimo1.26, DockerBuilder1.26.5. Mutex porID cobre iniciar/reconectar/retirar;
   pedidos de settings pendentes preservados na publicação; Disconnect aguarda
   encerramento. Archive e blocklist corrigidos, handshake do fork preservado.
 - **Checks:** build/vet/test completos e race dos três serviços passaram apósR4;
   regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
-- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; todos
-  aceitos/corrigidos. R6 em execução (sessão12249), snapshot limpo emea877fb.
-  Não modificar build/offline-sync-review enquanto ativa. Ainda SEM rodada limpa.
-  Log .code-review-log/fix-whatsmeow-offline-sync.md e relatórios round-1...6.txt.
+- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; R6 1P2;
+  R7 LIMPA em f072697. 13achados corrigidos (3P1/10P2), nenhum rejeitado/adiado.
+  Reviewer teve limite de sandbox em listeners; suíte completa fora dele passou,
+  e go test ./pkg/whatsmeow/service -count=1 repetido agora passou0 (sessão94355).
+  Review log .code-review-log/fix-whatsmeow-offline-sync.md, round-1...7.txt.
 - **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
   Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
   contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual:** ea877fb construído linux/amd64, tag local candidata,
-  ID12bfe23376cd574c82b2df45e2ac5206fa8b36766cc9e076fdde7702b67bf170.
-  Trocar apenas API local (operação registrada nesta sessão), retomar
-  duas sessões e validar HTTP user/check verde + envio defaultFormat antes dos
-  mesmos ciclos e mídia/duração. Build terminou0 (sessão46380 encerrada).
-- **Intermediários:**1bd56bf API4e718ba0/socket4ec7cd29 passaram20/20 Completed,
-  entrada60/60 e saída20/20; PN/LIDAPI nessa imagem falhou e foi corrigida depois.
-  Nenhum experimento ativo. Duração≥7200s ainda NÃO começou; não somar tempo ocioso.
+- **Etapa atual:** duração contínua ATIVA, rune282b2eb, iniciada
+  2026-11-11T22:15:21.142212Z, duração7200s, intervalo300s, sessãoPTY44684.
+  Comando: caffeinate -i python3 -u scripts/offline-sync/media_traffic.py --label after
+  --duration-seconds7200 --interval-seconds300. Log candidate-soak-f072697.log;
+  JSON results/media-after-e282b2eb.json; Markdown gerado em docs.
+  Não iniciar quedas, trocar API ou parear durante essa janela. Se interromper/falhar,
+  preservar estado e perguntar antes de recuperar. Não somar duração parcial.
+- **Comparação final encerrada:** API07bec535/socketb8739baa:20/20 Completed,
+  entrada60/60 e saída20/20,0panics/streams. Mídia7c526e36 passou6/6. Mesma imagem
+  final f072697, ID4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
+  HTTP PN/LID/defaultFormat verdes. A duração é a única execução longa pendente.
 - **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
   local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
   NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
@@ -920,3 +924,39 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
 - Preparar rodada7 no próximo commit, mesma configuração do Codex, e rebuildlocal.
   Sem novas alterações de estratégia/flags da SDK. Referência continua válida;
   repetir os10ciclos de cada método na imagem que vier com revisão limpa.
+
+## Esclarecimento ao Tuan e comparação final em curso (19:12 BRT)
+
+- Tuan perguntou sobre o teste que o sandbox do revisor restringiu e sobre tráfego
+  contínuo. Esclarecido: o pacote completo foi repetido no Mac com -count=1 e passou;
+  ambiente principal sempre foi o repositório/lab local, não produção.
+- Duração planejada: conexão contínua≥2h, lote de6mensagens (texto/PNG/tom1s em
+  cada sentido) a cada300s, até25lotes/150mensagens; estado conferido a cada2s,
+  entregas pelo webhook local e hashes/tipos. Sem quedas induzidas durante duração.
+- Finalf072 API after-07bec535 concluiu10/10 Completed, entrada30/30 e saída10/10,
+  sem panics/streams e0callbacks espúrios. Socket after-socket-b8739baa em execução,
+  sessão2131, em7/10ciclos com7conclusões na última amostra. Só iniciar mídia/duração
+  depois da conclusão. Código da imagem não mudou após revisão limpa.
+
+## Início da duração final (19:15 BRT /22:15 UTC)
+
+- Mesma imagem/código f072697 com revisão7limpa e checks completos verdes.
+- Media-after-7c526e36 prova curta passou6/6 em6,322s: texto/imagem/áudio duas vias.
+- Iniciado o comando de duração7200s/interval300s sob caffeinate -i temporário,
+  sem alterar preferências de energia. PTY permite interrupção controlada; aplicativo,
+  PostgreSQL e webhook continuam exclusivamente locais. Nenhuma queda induzida.
+- Previsão aproximada:21:15BRT, incluindo último lote. Só marcar pass após relatório
+  completo com elapsed≥7200, entregas, amostras de autenticação e logs conferidos.
+- Ao concluir: consolidar tabela, revisar docs/PRbody, commitar só evidências/docs,
+  push apenas academia e abrirPR no fork. Sem merge, publicação ou deploy.
+
+## Duração — primeiro checkpoint (19:25 BRT)
+
+- e282b2eb em andamento, aproximadamente10min:2lotes/12entregas, dois clientes
+  autenticados,0restarts/0panics/0stream_errors desde início. Medição em progresso,
+  não conclusão de2h. Relatório e JSON atualizados automaticamente por lote.
+- Código/harness comparados comf072697: nenhum diff em pkg, Dockerfile, go.mod/sum
+  ou scriptsPython. Somente docs/evidências mudaram após revisão7limpa.
+- Relatório consolidado com comparação final de20ciclos preenchido; duração continua
+  pendente. PRbody rascunhado em .code-review-log/pr-body-draft.md, com marcadores
+  de duração pendentes. Não publicar PR com esses marcadores nem antes do teste.

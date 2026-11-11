@@ -1,0 +1,20 @@
+# Local media and continuous traffic verification
+
+Status: **running**
+
+- Run: `e282b2eb`; label: `after`.
+- Image: `sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd`.
+- Started: 2026-11-11T22:15:21.142212Z.
+- Requested duration: 7200 seconds; interval: 300 seconds.
+- Only synthetic content, between two exclusive test accounts; no forced outages.
+- PNG solid color; WAV 1-second tone sent through normal local audio conversion.
+- Delivery requires matching hashed ID, incoming Message and correct media kind.
+- Authentication sampled every 2 seconds between batches and before each send.
+
+| Batch | Text delivered | Image delivered | Audio delivered |
+|---|---|---|---|
+| 1 | 2/2 | 2/2 | 2/2 |
+| 2 | 2/2 | 2/2 | 2/2 |
+| 3 | 2/2 | 2/2 | 2/2 |
+
+- authentication_samples: 312

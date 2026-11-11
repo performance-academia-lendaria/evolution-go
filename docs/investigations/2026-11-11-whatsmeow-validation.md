@@ -7,7 +7,7 @@ reproduzirem a falha. Este documento deve ser finalizado antes do PR.
 ## Escopo e identidade
 
 - Referência: main8d77799, imagem0.7.2-0.1.0, SDKb572.
-- Candidata atual: source1bd56bf, SDKc88388f, Go1.26.5/linux-amd64/CGO1.
+- Candidata atual: sourcef072697, SDKc88388f, Go1.26.5/linux-amd64/CGO1.
 - Tag somente local: tuanmedeiros/evolution-go:0.7.2-0.1.0-whatsmeow-c88388f-candidate.
 - Produção intacta; somente digest e contagens sanitizadas foram consultados.
 - Banco local temporário, dois números exclusivos e webhook local. Nenhuma mensagem
@@ -19,17 +19,20 @@ reproduzirem a falha. Este documento deve ser finalizado antes do PR.
 
 | Medida | Referência corrigida | Candidata final |
 |---|---|---|
-| Rota de reconexão | 10/10 ciclos, Completed10/10 | Pendente |
-| Queda real TCP,10s receptor | 10/10 ciclos, Completed10/10 | Pendente |
-| Entrada antes/durante/depois | 60/60 nos dois métodos | Pendente |
-| Saída recebida no outro número | 20/20 | Pendente |
-| Reinícios induzidos | 0 API;10 socket | Pendente |
-| Panics/erros de stream locais | 0/0 nos ciclos | Pendente |
-| Texto/imagem/áudio duas vias | 6/6 prova curta | Pendente |
+| Rota de reconexão | 10/10 ciclos, Completed10/10 | 10/10 ciclos, Completed10/10 |
+| Queda real TCP,10s receptor | 10/10 ciclos, Completed10/10 | 10/10 ciclos, Completed10/10 |
+| Entrada antes/durante/depois | 60/60 nos dois métodos | 60/60 nos dois métodos |
+| Saída recebida no outro número | 20/20 | 20/20 |
+| Reinícios induzidos | 0 API;10 socket | 0 API;10 socket |
+| Panics/erros de stream locais | 0/0 nos ciclos | 0/0 nos ciclos; duração em andamento |
+| Texto/imagem/áudio duas vias | 6/6 prova curta | 6/6 prova curta; duração em andamento |
 | QR novo na SDK | Referência pareada por Tuan | Passou na SDKc883, imagem1df14a7; prova recebida |
-| Duração contínua com tráfego | Não executada na referência | Pendente≥7200s |
-| Build/vet/suíte | Testes preservados | Passaram em1bd56bf |
-| Race dos serviços alterados | Regressões sintéticas | Passou em1bd56bf |
+| Duração contínua com tráfego | Não executada na referência | Em andamento: e282b2eb, início22:15:21UTC,7200s solicitados |
+| Build/vet/suíte | Testes preservados | Passaram emf072697 |
+| Race dos serviços alterados | Regressões sintéticas | Passou emf072697 |
+
+Candidata final: after-07bec535/API e after-socket-b8739baa/TCP, imagem4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
+Prova curta de mídia:7c526e36.
 
 Referência válida: before-7188d36c (80,643s) e before-socket-a70c1164 (162,916s).
 As primeiras execuções588b5cb3/1d697be3 tinham contador Completed incorreto; seus
@@ -66,9 +69,45 @@ sensível do laboratório, sem troca de branch durante execução.
 | 2 | 1P1+2P2 | Aceitos, regressões RED/GREEN, corrigidos |
 | 3 | 2P2 | Aceitos, regressões RED/GREEN, corrigidos |
 | 4 | 2P2 | Aceitos, regressões RED/GREEN, corrigidos |
-| 5 | Em execução | Não há rodada limpa ainda |
+| 5 | 1P2 | Aceito, regressão RED/GREEN, corrigido |
+| 6 | 1P2 | Aceito, regressão RED/GREEN, corrigido |
+| 7 | Limpa | Snapshotf072697, sem novos achados |
 
-Nenhum achado rejeitado ou adiado até aqui. Log exigido:
+13achados aceitos/corrigidos (3P1/10P2). Nenhum rejeitado ou adiado.
+Reviewer não pôde abrir listeners no sandbox para suíte completa; no ambiente
+principal go test ./pkg/whatsmeow/service -count=1 passou0 após a revisão, além da
+suíte completa/build/vet/race já verdes no mesmo código.
+
+### Decisões que mudam comportamento e sua consequência
+
+| Decisão | Consequência sem a correção |
+|---|---|
+| Archive preserva evento tipado no JSON | Panic antes do webhook de arquivamento |
+| Geração anterior cancelada/aguardada, handlers removidos e socket fechado | Worker antigo e callbacks poderiam disputar a reconexão |
+| Trava porID cobre operação inteira, inclusive início e limpeza | Limpeza antiga poderia remover referência do cliente novo |
+| Canal retido por callback não é fechado e envio respeita cancelamento | Panic send-on-closed-channel ou bloqueio ao retirar handler |
+| Callback atrasado ignora geração cancelada, job compartilhado identifica cliente recuperado | Estado do substituto poderia ser sobrescrito ou sua recuperação perdida |
+| Configuração mais recente é aplicada antes/depois da publicação | Pedido de trocar webhook/subscriptions poderia ser reconhecido e perdido |
+| ForceReconnect e Disconnect aguardam lifecycle compartilhado, com fallback de proxy global | Substituição descartada, confirmação prematura ou rota global ignorada |
+| Inicializador SQL compartilhado com retry após falha | Migrações concorrentes tentavam adicionar a mesma coluna |
+| Adaptadores preservam bloqueios e identidade PN/LID no HTTP | Contratos públicos mudavam com a SDK nova |
+| Harness conta log real e valida janela offline antes de classificar | Medição de sync incorreta ou reprodução falsa |
+
+A trava cobre operação completa porque reservar somente o worker não protegia a
+limpeza posterior do chamador. Atualizações pendentes têm mutex próprio: SQL e
+Connect não ficam sob ele, preservando cancelamento durante inicialização.
+
+### Achados rejeitados
+
+Nenhum. Todos os13achados procediam e tiveram testes de regressão antes/depois.
+
+### O que ficou fora da validação
+
+A causa do congelamento de produção permanece aberta; canário/observação dependem
+de aprovação futura. Não foi reproduzido o ack de status/media específico, nem
+feito teste de carga com104instâncias ou playback manual da mídia; não há issues
+separadas criadas para esses limites. Duração≥2h ainda pendente neste rascunho.
+ Log exigido:
 .code-review-log/fix-whatsmeow-offline-sync.md (local, ignorado por orientação da skill).
 
 ## Limites e proposta de implantação (sem execução)
@@ -78,6 +117,12 @@ ambas versões demonstram compatibilidade local; não isolam causalidade da bibl
 O ack de status/media do relato não foi reproduzido pelo proxy de queda TCP. Não há
 medida comparável de duas horas na referência nem teste de carga com104instâncias.
 Mídia é confirmada por entrega ao webhook/tipo/ID, sem playback manual no telefone.
+
+Imagem local final (código f072697):
+sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
+Binário inspecionado: Go1.26.5, linux/amd64, CGO1, SDKc883; SHA256server
+985871d19c22059c733eaad0de962c6d35e5151044ca2934ffcd43a9636ee9dc.
+VERSION interno preservado0.7.2-0.1.0. Nenhuma imagem publicada.
 
 SDK exige Go1.26 e migrações15/16. SQLdeclara compatibilidade comv8+; imagem antiga
 conectou e passou ambos métodos no banco temporário já migrado, evidência local de
