@@ -1,8 +1,8 @@
 # Validação da candidata whatsmeow offline sync
 
-**Estado: duração em andamento. A causa do congelamento de produção permanece aberta.**
+**Estado: duração interrompida aos 41 minutos; decisão do Tuan pendente. A causa de produção permanece aberta.**
 Tuan autorizou a atualização como candidata experimental depois que os dois métodos
-locais não reproduziram o incidente. A conclusão deste relatório aguarda o teste de duração.
+locais não reproduziram o incidente. A conclusão deste relatório aguarda a decisão sobre repetir o teste de duração.
 
 ## Identidade e ambiente
 
@@ -30,7 +30,7 @@ locais não reproduziram o incidente. A conclusão deste relatório aguarda o te
 | Panics / erros de stream nos ciclos | 0 / 0 | 0 / 0 |
 | Texto, imagem e áudio nas duas vias | 6/6 na prova curta | 6/6 na prova curta |
 | Pareamento por QR | Dois números pareados por Tuan | QR adicional na SDK nova autenticou e recebeu prova |
-| Tráfego periódico por pelo menos 2 h | Não executado na referência | Em andamento: `e282b2eb`, iniciado 22:15:21 UTC |
+| Tráfego periódico por pelo menos 2 h | Não executado na referência | Interrompido: 41min08,5s, 54/54 entregas; 1 queda/erro503, recuperação automática |
 | Build / vet / suíte completa | Testes existentes preservados | Passaram em `f072697` |
 | Race dos três serviços alterados | Regressões sintéticas | Passou em `f072697` |
 
@@ -42,7 +42,12 @@ Resultados finais da candidata:
 [API `07bec535`](2026-11-11-offline-sync-after-07bec535.md),
 [socket `b8739baa`](2026-11-11-offline-sync-after-socket-b8739baa.md) e
 [mídia `7c526e36`](2026-11-11-offline-sync-media-after-7c526e36.md).
-[Duração `e282b2eb`](2026-11-11-offline-sync-media-after-e282b2eb.md) ainda em execução.
+[Duração `e282b2eb`](2026-11-11-offline-sync-media-after-e282b2eb.md) encerrou como `stopped`, não como aprovação de duas horas.
+
+Foram entregues os 54 envios aceitos antes da queda. Houve um `stream:error`503,
+sem o ack de status/media do relato, e o receptor voltou com OfflineSyncCompleted.
+Não houve novo envio após a recuperação. O roteiro parou na perda momentânea de
+autenticação/conexão. Reteste/critério aguarda decisão; nenhuma ação manual foi feita.
 
 As primeiras execuções `588b5cb3` e `1d697be3` tinham contador de Completed incorreto.
 Seus zeros foram invalidados, os relatórios receberam aviso e ambos os métodos foram
@@ -124,8 +129,8 @@ Nenhum. Todos os 13 procediam e foram corrigidos. Nenhum achado de revisão foi 
 A causa de produção continua aberta e sua observação em canário depende de autorização
 futura. Não foram reproduzidos o ack específico de status/media, a carga de 104
 instâncias ou o playback manual da mídia. Também não há cobertura ao vivo de todos
-os endpoints. Não foram criadas issues separadas para esses limites. A duração está
-pendente enquanto este relatório permanece em andamento.
+os endpoints. Não foram criadas issues separadas para esses limites. A duração de duas horas permanece pendente após a interrupção. O próximo teste
+aguarda decisão explícita do Tuan antes de alterar critério ou continuar.
 
 ## Riscos, rollback e proposta de implantação
 

@@ -2,7 +2,7 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 19:25 BRT / 22:25 UTC. Fases2/3/4 em andamento.
+Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
   não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
@@ -25,13 +25,20 @@ Atualizado em 2026-11-11, 19:25 BRT / 22:25 UTC. Fases2/3/4 em andamento.
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual:** duração contínua ATIVA, rune282b2eb, iniciada
-  2026-11-11T22:15:21.142212Z, duração7200s, intervalo300s, sessãoPTY44684.
-  Comando: caffeinate -i python3 -u scripts/offline-sync/media_traffic.py --label after
-  --duration-seconds7200 --interval-seconds300. Log candidate-soak-f072697.log;
-  JSON results/media-after-e282b2eb.json; Markdown gerado em docs.
-  Não iniciar quedas, trocar API ou parear durante essa janela. Se interromper/falhar,
-  preservar estado e perguntar antes de recuperar. Não somar duração parcial.
+- **Etapa atual: PARADO aguardando decisão do Tuan**, conforme regra de não
+  contornar bloqueios. Duração e282b2eb interrompida após2468,498s (41min08,5s),
+  statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
+  momentânea de conexão disparou o critério rígido do roteiro. NÃO completou2h.
+  SessãoPTY44684 encerrou código2; caffeinate terminou com ela. Nenhum tráfego novo
+  ou recuperação manual foi iniciado depois. API/PG/receptor/proxy preservados.
+- **Evento observado:** stream:error503 às22:56:28UTC, sem ackstatus/media. Receptor
+  reconectou automaticamente:1Connected,1Preview,1Completed,1restart; remetente
+  sem reconexão. Ambos atualmente autenticados. Panics0. Recepção de novo envio
+  após recuperação ainda não foi testada. Diagnóstico seguro em soak-stop-diagnostics.json.
+- **Decisão pendente:** Tuan recebeu opções: (1)validar entrega pós-recuperação e
+  repetir2h permitindo quedas breves somente com sync/entrega corretos; (2)repetir2h
+  exigindo zeroquedas; (3)parar/revisar. Não escolher nem alterar roteiro antes da resposta.
+  Não abrir PR: validação de duração obrigatória continua pendente.
 - **Comparação final encerrada:** API07bec535/socketb8739baa:20/20 Completed,
   entrada60/60 e saída20/20,0panics/streams. Mídia7c526e36 passou6/6. Mesma imagem
   final f072697, ID4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
@@ -983,3 +990,20 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   longa continua na mesma imagem. Não antecipar aprovação do período de duas horas.
 - Permissão de push no fork confirmada por metadados do GitHub; branch remota ainda
   não existe. Nenhum push ou PR executado. Main remoto continua na base 8d77799.
+
+## Interrupção real e pedido de decisão (19:59 BRT)
+
+- Janela:22:15:21.142212UTC até22:56:30.022120UTC;2468,498s. Script encerrou2 com
+  STOP:authenticationlost. Último lote40min foi entregue: total54/54,9lotes.
+- Log estrutural sanitizado: stream:error com código503 às22:56:28.428517730UTC;
+  nenhuma tag/atributo de ackstatus/media. Não é a assinatura exata relatada na
+  produção. Nenhuma mensagem bruta/telefone/token foi exposto na análise.
+- O próprio aplicativo fez recuperação natural do receptor; logs mostram Preview1
+  e Completed1 após o início da janela, conectado/autenticado de novo. Sem panic.
+  Não foi enviado novo probe após essa recuperação; não afirmar recebimento validado
+  depois dela, nem estabilidade de2h. Script não fez intervenção de recuperação.
+- Estado preservado; pergunta ao Tuan enviada antes de retomar, trocar critério,
+  modificar biblioteca ou publicar PR. Esta parada decorre da regra expressa do
+  usuário e do critério do roteiro, não de sandbox nem de achado pendente do Codex.
+- Código f072697 continua com revisão7limpa/build/vet/test/race verdes. Somente
+  documentação/evidência é atualizada. Nenhuma alteração ou novo acesso à produção.

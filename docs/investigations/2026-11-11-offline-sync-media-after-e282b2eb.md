@@ -1,6 +1,6 @@
 # Local media and continuous traffic verification
 
-Status: **running**
+Status: **stopped**
 
 - Run: `e282b2eb`; label: `after`.
 - Image: `sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd`.
@@ -20,5 +20,13 @@ Status: **running**
 | 5 | 2/2 | 2/2 | 2/2 |
 | 6 | 2/2 | 2/2 | 2/2 |
 | 7 | 2/2 | 2/2 | 2/2 |
+| 8 | 2/2 | 2/2 | 2/2 |
+| 9 | 2/2 | 2/2 | 2/2 |
 
-- authentication_samples: 923
+- finished_utc: "2026-11-11T22:56:30.022120Z"
+
+- elapsed_seconds: 2468.498
+
+- authentication_samples: 1258
+
+- stop_reason: "STOP: authentication lost; preserve sessions and ask Tuan before recovery."
