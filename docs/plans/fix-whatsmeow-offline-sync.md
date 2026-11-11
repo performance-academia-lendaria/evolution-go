@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11, 15:32 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-11, 16:20 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -11,10 +11,12 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** primeira execução por dez ciclos de `ReconnectClient` não
-reproduziu; resultados preservados em `before-588b5cb3`. Tuan autorizou em seguida
-quedas reais só no receptor. Proxy validado, método em execução em
-`before-socket-1d697be3`, com link e sessão no diário. Mesma imagem, Go e biblioteca.
+**Estado atual:** duas execuções concluídas na imagem atual, ambas sem reproduzir:
+dez reconexões por API (`before-588b5cb3`) e dez quedas reais de socket
+(`before-socket-1d697be3`). Cada execução entregou 30/30 mensagens de entrada e
+10/10 de saída, com zero Completed, panics ou erros de stream nas janelas. Parado
+novamente para decisão do Tuan antes de ampliar testes ou iniciar Fase 2.
+Go e dependências permanecem sem alterações.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -160,6 +162,14 @@ atual ou manter parado. Tuan escolheu quedas reais de socket. O roteiro inicial 
    mais prova de envio do receptor. Salvar nova execução distinta da primeira.
 7. Se reproduzir, preservar a sessão com falha e diagnosticar. Se não reproduzir
    ou houver outro bloqueio, parar novamente e consultar o Tuan antes de Fase 2.
+
+**Resultado da extensão:** dez sockets efetivamente encerrados, dez `Disconnected`
+com restart automático, remetente autenticado durante todas as quedas, entrega
+completa nos dois sentidos. 32min29s de execução, encerrada em 2026-11-11, 16:20 BRT
+como `not_reproduced`. [Tabela final](../investigations/2026-11-11-offline-sync-before-socket-1d697be3.md).
+Nenhuma alteração de biblioteca autorizada por esse resultado. Pergunta pendente:
+teste de pelo menos duas horas com texto/áudio/imagem, reconexões concorrentes
+dirigidas ao receptor, ou manter parado.
 
 ## Fase 2 — Correção mínima condicionada à reprodução
 

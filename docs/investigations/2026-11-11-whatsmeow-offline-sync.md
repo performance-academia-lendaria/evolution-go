@@ -2,21 +2,24 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 16:05 BRT / 19:05 UTC. Primeira execução encerrada;
-experimento com quedas reais em andamento.
+Atualizado em 2026-11-11, 16:20 BRT / 19:20 UTC. Duas execuções concluídas sem
+reproduzir o congelamento; aguardando nova decisão do Tuan.
 
-- **Etapa atual:** Fase 1 ampliada por autorização do Tuan para quedas reais de socket
-  só no receptor. Execução `before-socket-1d697be3` em andamento, sessão `46833`.
-  Nenhuma autorização para atualizar biblioteca.
+- **Etapa atual:** Fase 1 com dois roteiros concluídos, ambos `not_reproduced`.
+  Parado conforme a regra de não reprodução, aguardando decisão do Tuan.
+  Nenhuma atualização de biblioteca nem correção Go iniciada.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** acompanhar a execução em andamento, iniciada com
-  `python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180`
-  na sessão `46833`. [Relatório incremental de socket](2026-11-11-offline-sync-before-socket-1d697be3.md).
+- **Próximo passo:** aguardar resposta do Tuan: pelo menos duas horas com tráfego
+  periódico de texto/áudio/imagem, reconexões concorrentes somente no receptor,
+  ou manter parado. Não ampliar teste nem iniciar Fase 2 sem a resposta.
+  Segunda execução encerrada (sessão `46833`, código 0), iniciada com
+  `python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180`.
+  [Relatório final de socket](2026-11-11-offline-sync-before-socket-1d697be3.md).
   JSON: `build/offline-sync-lab/results/before-socket-1d697be3.json`.
-  Não iniciar outra execução concorrente. Parar e perguntar ao Tuan se não reproduzir.
+  Gate restaurado; nenhuma execução de ciclos permanece ativa.
   Tuan escolheu explicitamente essa alternativa após a não reprodução inicial.
   Não atualizar whatsmeow nem alterar código Go.
   Comando da primeira execução:
@@ -44,8 +47,8 @@ experimento com quedas reais em andamento.
   `proxy.env`; prova de validação em `proxy-validated.json`.
 - **Processos em execução:** os quatro containers acima e a página auxiliar
   `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
-  `57886`; experimento socket `46833` em andamento. Experimento API `58062` encerrado;
-  nenhuma revisão Codex.
+  `57886`. Experimentos socket `46833` e API `58062` encerrados; nenhum teste ou
+  revisão Codex em execução. Containers preservados com os dois pareamentos e licença.
 - **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
   administrativa do laboratório foi copiada para a área de transferência e, após
   autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
@@ -429,6 +432,59 @@ telefones, payloads completos ou conteúdo de mensagem.
 - Hipótese da dependência permanece aberta; nenhum congelamento reproduzido até
   este checkpoint. Relatório incremental segue salvando cada etapa automaticamente.
 
+### 2026-11-11, 16:20 BRT — Dez quedas reais concluídas; não reprodução confirmada
+
+- Execução `before-socket-1d697be3`: 15:47:42 a 16:20:11 BRT
+  (18:47:42 a 19:20:11 UTC), duração 1.949,486 s, aproximadamente 32min29s;
+  código 0 e estado de experimento **`not_reproduced`**.
+- Dez túneis TCP ativos efetivamente encerrados, dez quedas observadas, dez envios
+  durante a queda confirmados, dez recuperações autenticadas e dez liberações do
+  gate. Remetente permaneceu autenticado durante todas as interrupções.
+- Dez reinícios por `Disconnected`, todos provocados pelo teste. Dez Connected,
+  dez Preview, zero Completed. Sem chamada manual de reconexão durante os ciclos.
+- Entrega: 10/10 antes, 10/10 durante, 10/10 depois; prova inicial adicional
+  entregue. No outro sentido: 10/10 provas de saída do receptor.
+- Zero panics e zero erros `stream:error` do processo nas janelas. O fechamento
+  TCP gerou EOF/Disconnected e não reproduziu a rejeição de ack de status/media
+  vista no servidor. Não misturar os reinícios induzidos com taxa espontânea.
+- Máximo do pedido local até webhook: antes 0,714 s, durante 12,250 s, depois
+  1,173 s, saída 1,236 s. A mensagem de durante ficou pendente enquanto o túnel
+  esteve fechado e chegou após a recuperação. Valores de host/Docker local.
+- **Conclusão:** mesmo com o handler real Disconnected/Restart exercitado, não
+  houve congelamento. As duas execuções demonstram que falta de Completed isolada
+  pode coexistir com entrega funcionando. A causa do incidente e a hipótese de
+  biblioteca defasada continuam sem confirmação ou descarte causal.
+- **Limites:** cada execução durou cerca de meia hora, com textos sintéticos
+  pontuais. Não foi feito teste contínuo de duas horas, tráfego de áudio/imagem,
+  status/mídia, carga de produção nem reconexões concorrentes para o mesmo device.
+  Não houve panic Archive durante esses cenários; seu fix/teste continuam pendentes.
+- **Parada:** nenhuma alteração em Go/dependências, build candidato, revisão Codex,
+  push, PR, merge, publicação ou deploy. Produção nunca foi acessada nesta sessão.
+- Ambiente preservado com quatro containers, gate aberto e dois números autenticados.
+  Não há ciclo em execução. Nova pergunta enviada ao Tuan antes de prosseguir:
+  duração de pelo menos duas horas com texto/áudio/imagem (sugerido), reconexões
+  concorrentes só no receptor, ou manter parado.
+
+## Comparação dos dois métodos na referência atual
+
+| Indicador | Rota ReconnectClient | Queda TCP real só no receptor |
+|---|---|---|
+| Execução | `before-588b5cb3` | `before-socket-1d697be3` |
+| Ciclos com queda e reconexão confirmadas | 10/10 | 10/10 |
+| Sockets encerrados pelo controle | Não se aplica | 10 |
+| Reinícios automáticos por Disconnected | 0 | 10 induzidos |
+| Envio aceito durante queda confirmada | 10/10 | 10/10 |
+| Entrada antes/durante/depois no webhook | 30/30 | 30/30 |
+| Saída do receptor recebida no remetente | 10/10 | 10/10 |
+| Preview / Completed | 10 / 0 | 10 / 0 |
+| Panics / erros de stream nas janelas | 0 / 0 | 0 / 0 |
+| Duração | 31min12s | 32min29s |
+| Incidente de recebimento congelado | Não reproduzido | Não reproduzido |
+
+Ambos os testes usam a mesma imagem e dependência originais. Esta tabela compara
+métodos de queda, **não** uma correção antes/depois. As provas iniciais adicionais
+também chegaram; não estão somadas aos 30 marcadores por execução.
+
 ## Comparação antes e depois
 
 | Medida | Referência `main` / imagem atual | Candidato |
@@ -436,11 +492,11 @@ telefones, payloads completos ou conteúdo de mensagem.
 | Identidade | `8d77799`; imagem local identificada acima | Não criado |
 | Licença local | **Ativa — ativação pelo Tuan, conferida às 14:43 BRT** | Não executado |
 | QR/pareamento dos dois números de teste | Concluído; ambos autenticados após preparação | Não executado |
-| Ciclos confirmados de reconexão | **10/10**; [tabela final](2026-11-11-offline-sync-before-588b5cb3.md) | Não executado |
-| Reconexões com `OfflineSyncCompleted` | **0/10**; Preview em 10/10 | Não executado |
-| Mensagens antes/durante/depois recebidas no webhook | **10/10 em cada fase (30/30)**, além da prova inicial | Não executado |
-| Mensagens de saída recebidas no remetente | **10/10** | Não executado |
-| Quedas espontâneas | **0** reinícios automáticos no receptor nas janelas; dez reconexões forçadas | Não executado |
+| Ciclos confirmados de reconexão | **10/10 por API + 10/10 por socket**; detalhes nas tabelas acima | Não executado |
+| Reconexões com `OfflineSyncCompleted` | **0/20**; Preview em 20/20 | Não executado |
+| Mensagens antes/durante/depois recebidas no webhook | **30/30 por método (60/60)**, além das provas iniciais | Não executado |
+| Mensagens de saída recebidas no remetente | **10/10 por método (20/20)** | Não executado |
+| Reinícios por Disconnected | 0 no método API; **10 induzidos** no método socket | Não executado |
 | Panics e erros de stream do processo | **0 e 0** nas janelas | Não executado |
 | Teste de duração ≥ 2 horas | Não executado | Não executado |
 | Envio texto/mídia e recepção texto/áudio/imagem | Não executado | Não executado |
@@ -449,8 +505,8 @@ telefones, payloads completos ou conteúdo de mensagem.
 
 ## Conclusões e decisões em aberto
 
-A hipótese da whatsmeow defasada permanece sem teste causal. Dez reconexões locais
-pela rota da API não reproduziram a perda de recebimento, apesar da falta de
-Completed. Não há correção nem conclusão de estabilidade de duas horas. Aguardar
-decisão do Tuan sobre a hipótese antes de atualizar a dependência. A ampliação para
-quedas reais foi autorizada e está em preparação; as demais fases continuam pendentes.
+A hipótese da whatsmeow defasada permanece sem teste causal. Dez reconexões por
+API e dez quedas reais de TCP não reproduziram a perda de recebimento, apesar da
+falta de Completed. Não há correção nem conclusão de estabilidade de duas horas.
+Aguardar nova decisão do Tuan antes de ampliar os testes ou atualizar a dependência;
+as Fases 2 a 5 continuam pendentes.
