@@ -11,12 +11,12 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** duas execuções concluídas na imagem atual, ambas sem reproduzir:
-dez reconexões por API (`before-588b5cb3`) e dez quedas reais de socket
-(`before-socket-1d697be3`). Cada execução entregou 30/30 mensagens de entrada e
-10/10 de saída, com zero Completed, panics ou erros de stream nas janelas. Parado
-novamente para decisão do Tuan antes de ampliar testes ou iniciar Fase 2.
-Go e dependências permanecem sem alterações.
+**Estado atual:** após as duas execuções sem reprodução, Tuan propôs prosseguir com
+a correção na biblioteca. Fase 2 retomada como **candidata experimental**, mantendo
+explícito que a causa de produção não foi confirmada. Primeiro avaliar/aplicar a
+versão oficial mais recente; só criar patch próprio da biblioteca se houver defeito
+específico demonstrado que a versão oficial não cubra. Produção continua somente
+leitura; merge/publicação/deploy continuam sem autorização.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -172,6 +172,18 @@ teste de pelo menos duas horas com texto/áudio/imagem, reconexões concorrentes
 dirigidas ao receptor, ou manter parado.
 
 ## Fase 2 — Correção mínima condicionada à reprodução
+
+**Alteração de sequência autorizada em 2026-11-11, após os testes:** Tuan sugeriu
+prosseguir com correção na biblioteca apesar da não reprodução. Isso permite
+preparar e validar a atualização como candidata; não transforma testes locais
+verdes em prova de que o incidente em produção foi resolvido. Preservar os dois
+resultados antigos e apresentar essa limitação nos resultados e no eventual PR.
+
+Plano desta etapa: documentar os 117 commits e opções, provar o panic Archive com
+teste na versão antiga, atualizar para `c88388f983b4` via `@latest`, ajustar a
+compilação/Go mínimo, corrigir Archive com vermelho/verde e avaliar o ciclo de vida
+de reconexão com teste antes/depois caso alterado. Depois retomar as Fases 3–5,
+incluindo duração mínima de duas horas, mídia, imagem local e revisão obrigatória.
 
 1. Registrar a evidência que permite iniciar esta fase.
 2. Executar `go get go.mau.fi/whatsmeow@latest` e `go mod tidy`; registrar versão

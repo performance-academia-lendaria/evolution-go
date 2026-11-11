@@ -2,33 +2,22 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 16:20 BRT / 19:20 UTC. Duas execuções concluídas sem
-reproduzir o congelamento; aguardando nova decisão do Tuan.
+Atualizado em 2026-11-11, Fase 2 em andamento. SDK oficial atualizado no código;
+lab ainda roda imagem de referência, com licença e dois pareamentos preservados.
 
-- **Etapa atual:** Fase 1 com dois roteiros concluídos, ambos `not_reproduced`.
-  Parado conforme a regra de não reprodução, aguardando decisão do Tuan.
-  Nenhuma atualização de biblioteca nem correção Go iniciada.
+- **Etapa atual:** adaptar incompatibilidades de compilação e concluir checks;
+  preparar imagem candidata para validação local. A causa de produção não foi provada.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** aguardar resposta do Tuan: pelo menos duas horas com tráfego
-  periódico de texto/áudio/imagem, reconexões concorrentes somente no receptor,
-  ou manter parado. Não ampliar teste nem iniciar Fase 2 sem a resposta.
-  Segunda execução encerrada (sessão `46833`, código 0), iniciada com
-  `python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180`.
-  [Relatório final de socket](2026-11-11-offline-sync-before-socket-1d697be3.md).
-  JSON: `build/offline-sync-lab/results/before-socket-1d697be3.json`.
-  Gate restaurado; nenhuma execução de ciclos permanece ativa.
-  Tuan escolheu explicitamente essa alternativa após a não reprodução inicial.
-  Não atualizar whatsmeow nem alterar código Go.
-  Comando da primeira execução:
-  `python3 scripts/offline-sync/experiment.py --label before --cycles 10 --recovery-seconds 180`.
-  Relatório final:
-  [antes 588b5cb3](2026-11-11-offline-sync-before-588b5cb3.md).
-  JSON local: `build/offline-sync-lab/results/before-588b5cb3.json`.
-  A sessão `58062` terminou com código 0 e estado `not_reproduced`; isso não é
-  correção comprovada nem liberação para Fase 2.
+- **Próximo passo:** concluir build/vet/suíte; commitar candidata; construir imagem
+  linux/amd64 com contexto Git sem segredos; preservar bancos temporários internamente
+  e trocar somente API local. Repetir os dois experimentos, mídia e duração ≥2h.
+  [Análise dos commits/opções](2026-11-11-whatsmeow-upgrade-analysis.md).
+- **Antes:** API `588b5cb3` e socket `1d697be3` encerrados, 10 ciclos cada,
+  sem congelamento/perda. Preview 20/20, Completed 0/20. Tuan autorizou prosseguir
+  com candidata experimental apesar da não reprodução. Não há experimentos ativos.
 - **Dependência do Tuan:** dois números exclusivos de teste confirmados e ambos
   pareados. Não é necessário novo QR para as sessões já salvas.
 - **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
@@ -54,7 +43,10 @@ reproduzir o congelamento; aguardando nova decisão do Tuan.
   autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
   em arquivos versionados. A exceção vale somente para essa chave de teste.
 - **Produção:** nenhum acesso à EC2 ou aos bancos nesta sessão; nenhuma alteração.
-- **Push, PR, build Go, suíte Go e revisão Codex:** ainda não executados.
+- **Push, PR e revisão Codex:** ainda não executados. Build/vet/suíte em validação.
+- **Teste de regressão Archive:** primeiro vermelho confirmado na biblioteca
+  antiga e após atualização; fix já verde nos três casos. Regressões de reconexão
+  também com vermelho/verde; suíte completa e testes com imagem candidata pendentes.
 - **Limpeza disponível, não executada:**
   `python3 scripts/offline-sync/lab.py down`; apaga o banco temporário e preserva
   arquivos locais para limpeza explícita. Não rodar durante a ativação/medição.
@@ -465,6 +457,81 @@ telefones, payloads completos ou conteúdo de mensagem.
   duração de pelo menos duas horas com texto/áudio/imagem (sugerido), reconexões
   concorrentes só no receptor, ou manter parado.
 
+### 2026-11-11, 16:33–16:40 BRT — Nova orientação e análise da biblioteca
+
+- Após a parada por não reprodução, Tuan sugeriu prosseguir com correção na
+  biblioteca e perguntou sobre a viabilidade. Retomada da Fase 2 como candidata
+  experimental, mantendo a causa não comprovada e os demais limites originais.
+- `go list -m -json go.mau.fi/whatsmeow@latest`, sem editar go.mod, resolveu
+  `v0.0.0-20261110152934-c88388f983b4`, de 2026-11-10 15:29:34 UTC, Go mínimo 1.26.0.
+- Clonado upstream público, apenas para leitura, em
+  `build/offline-sync-lab/whatsmeow-upstream`. HEAD
+  `c88388f983b4bc43dfd0bcc2b46969fcde82d61f`; `git rev-list --count`
+  confirmou exatamente 117 commits desde `b572e5bcb92b`.
+- Lidos diffs primários de filas/conexão, stream errors, keepalive, handshake,
+  status, acks, sessão unificada e app state; análise dedicada linkada abaixo.
+- Opções e causa permanecem decisões técnicas a validar. O suporte a stanza
+  `status` não prova correção da rejeição `ack class=status type=media` observada.
+- Próximas ações: teste de regressão de Archive antes de mexer nele; atualização
+  oficial e adaptação do build para Go 1.26; testes locais e de duração. Não criar
+  fork/patch especulativo da biblioteca sem defeito concreto na versão atual.
+
+### 2026-11-11, 16:53 BRT — Panic Archive reproduzido antes da correção
+
+- Criado `pkg/whatsmeow/service/archive_event_test.go`: chama o handler real com
+  evento tipado e captura seu despacho de webhook em memória, sem rede ou segredos.
+  Casos previstos: arquivar, desarquivar em full sync e Action nula; verifica o
+  contrato JSON e a fila, em vez de testar somente uma função auxiliar.
+- Comando: `go test ./pkg/whatsmeow/service -run '^TestArchiveEventDispatchesTypedPayload$' -count=1`.
+- **VERMELHO**, exit 1, na versão antiga: primeiro caso reproduziu
+  `interface conversion: interface {} is *events.Archive, not map[string]interface {}`
+  em `whatsmeow.go:1787`. Não é resultado de WhatsApp/produção; é regressão unitária
+  do panic já relatado e independente da hipótese de congelamento.
+- Upstream também confirmou migrações 15 e 16 de sqlstore (companion meta nonce e
+  segredo WASA). Revisar compatibilidade e preservar rollback local antes de trocar
+  a imagem do laboratório; nenhum schema local ou de produção alterado ainda.
+- Atualização selecionada: oficial `c88388f983b4`, com Go mínimo 1.26.0. O arquivo
+  da dependência sugere toolchain 1.27.2; verificar o resultado efetivo de go get/build
+  com o Go 1.26.5 instalado. Não inferir necessidade de atualizar produção.
+
+### 2026-11-11, 16:54–17:17 BRT — Dependência atualizada e regressões corrigidas
+
+- Executados `go get go.mau.fi/whatsmeow@latest` e `go mod tidy` usando proxy público
+  e Go 1.26.5 local. Resolvido `c88388f983b4`, go.mod passou para `go 1.26.0`;
+  dependências transitivas acompanhadas pelo resolvedor. Não foi necessário baixar
+  Go 1.27.2 nem editar os mecanismos de versão/payload do fork para compilar o pacote.
+- Dockerfile atualizado de Go 1.25.0 para 1.26.5, alinhado ao novo mínimo e ao host.
+- Archive continuou **vermelho** com o SDK novo, mesmo panic/linha. Removida somente
+  a conversão indevida: o evento tipado já contém os campos JSON necessários.
+  Casos arquivar/desarquivar full-sync/Action nula ficaram **verdes**, preservando
+  fila, envelope, JID, timestamp e ação no teste do handler real.
+- Testes de reconexão no código anterior ficaram **vermelhos** por motivos
+  funcionais: socket já fechado não recebia Disconnect explícito; duas chamadas
+  concorrentes executavam duas limpezas (4 consultas em vez de 2); preparação da
+  substituição ocorria com worker anterior ainda ativo e contexto não cancelado.
+- Reconexão agora combina chamadas simultâneas por instância, cancela a geração
+  anterior, chama Disconnect mesmo com socket fechado, remove handlers e aguarda
+  término do worker antes de limpar registros e iniciar substituto. Removido o
+  sinal não bloqueante de kill usado na reconexão e a recursão de restart do worker.
+- Workers capturam o canal da própria geração. Presença e rotação QR encerram com
+  o contexto; o worker de presença não consome o sinal destinado ao worker principal.
+- Novo teste provou **vermelho**: timeout QR bloqueado numa operação antiga podia,
+  após substituição, enviar kill ao canal novo. Corrigido com contexto e canal da
+  geração capturados; teste **verde**.
+- Callback Disconnected passa identidade do cliente ao fluxo interno. Guarda de
+  propriedade impede callback antigo de aposentar substituto. Prova **vermelha**
+  removendo temporariamente apenas a guarda: matou o substituto e removeu seu
+  handler. Guarda restaurada; mesmo teste **verde**. Código temporário não mantido.
+- Grupo de regressões passou após correções:
+  `go test ./pkg/whatsmeow/service -run '^(TestArchiveEventDispatchesTypedPayload|TestReconnect.*|TestStaleDisconnected.*|TestCanceledQRTimeout.*)$' -count=1`.
+- Receivers do serviço passaram a ponteiro para não copiar o grupo sincronizado.
+  Interface pública mantida. Nenhum estado online/payload de handshake alterado.
+- As migrações oficiais 15/16 declaram compatibilidade com v8+ e acrescentam colunas;
+  nenhum schema foi migrado ainda no laboratório. Confirmar antes de trocar imagem.
+- SDK novo e patches de app ainda não rodaram com os números reais. Biblioteca
+  continua sem confirmação causal em produção; candidato precisa de validação local
+  completa e teste de duração antes de PR. Opções de ack/sessão continuam sob análise.
+
 ## Comparação dos dois métodos na referência atual
 
 | Indicador | Rota ReconnectClient | Queda TCP real só no receptor |
@@ -508,5 +575,33 @@ também chegaram; não estão somadas aos 30 marcadores por execução.
 A hipótese da whatsmeow defasada permanece sem teste causal. Dez reconexões por
 API e dez quedas reais de TCP não reproduziram a perda de recebimento, apesar da
 falta de Completed. Não há correção nem conclusão de estabilidade de duas horas.
-Aguardar nova decisão do Tuan antes de ampliar os testes ou atualizar a dependência;
-as Fases 2 a 5 continuam pendentes.
+Tuan propôs seguir com a correção na biblioteca; a Fase 2 foi retomada como
+candidata experimental. Fases 3 a 5 permanecem pendentes. A conclusão final e o
+eventual PR deverão distinguir validação local de confirmação da causa de produção.
+
+## Fase 2 — checks e adaptação de API (17:26 BRT)
+
+- Primeiro build/vet/suíte completos falharam em quatro chamadas de pkg/user/service:
+  UpdateBlocklist agora recebe dhash, GetBlocklist idem; SetStatusMessage recebe
+  types.SetStatusInput. Ajustado dhash vazio para manter resposta completa, conforme
+  documentação/código upstream; status usa Text apontando para o texto já recebido.
+  Nenhuma alteração no contrato HTTP. Não é prova comportamental de correção.
+- Race em pkg/whatsmeow/service passou. Saídas resumidas em
+  build/offline-sync-lab/checks/. Novos checks serão registrados após adaptação.
+- make fmt foi executado; formatação incidental do arquivo obfuscado pkg/core/c0.go
+  foi restaurada após comparação byte a byte com gofmt(HEAD), preservando escopo.
+- Produção permanece intocada; lab ainda usa imagem antiga. Nenhuma publicação.
+
+## Fase 2 — compilação concluída (17:30 BRT)
+
+- Após adaptar as quatro chamadas, go build ./..., go vet ./... e go test ./...
+  encerraram com código 0. go test -race ./pkg/whatsmeow/service também código 0.
+  Logs locais em build/offline-sync-lab/checks/; suíte preexistente preservada.
+- Primeira candidata usa defaults upstream: SynchronousAck=false e
+  UnifiedSessionInterval=0. Alterar opções juntamente com SDK impediria distinguir
+  efeitos; sem defeito demonstrado, manter comportamento de ack/presença atual.
+- Próximo: imagem linux/amd64 de contexto Git sem arquivos locais; cópias internas
+  dos bancos temporários antes da migração; executar no mesmo lab e comparar.
+- A revisão obrigatória usará a skill tm-codex-review-loop já lida, com modelo
+  gpt-6.1-sol e esforço high explicitamente escolhidos pelo Tuan. Nenhuma nova
+  escolha/autoridade de deploy é inferida.
