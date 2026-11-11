@@ -59,12 +59,32 @@ de código e não demonstram, por si, a causa do incidente de produção.
 - Atualização oficial: selecionada como candidata pelo pedido de prosseguir do Tuan.
 - Patch próprio/fork da biblioteca: nenhum criado; depende de falha concreta ainda
   presente na versão oficial e teste que a demonstre.
-- Primeira candidata mantém SynchronousAck=false e UnifiedSessionInterval=0.
-  Sem evidência de necessidade, manter defaults reduz mudança comportamental.
-  A opção de sessão será avaliada separadamente se o laboratório indicar necessidade;
-  não alterar alwaysOnline para obter o envio da sessão.
+- Decisão: manter SynchronousAck=false e UnifiedSessionInterval=0, defaults da SDK.
+  As imagens intermediárias com a SDK nova completaram 20/20 reconexões e receberam
+  60/60 mensagens; QR novo também autenticou. Nenhum teste demonstrou necessidade de
+  ligar opção. SynchronousAck faria ack depender de handlers com I/O; sessão unificada
+  adicionaria outro comportamento sem isolar causa. Não mudar alwaysOnline/presença.
+  Isto não prova que os defaults cubram a falha específica de produção ainda sem
+  reprodução; rever opções somente com um caso que as demonstre necessárias.
 - Causa do congelamento de produção: aberta; não declarar resolvida pelo simples
   fato de a candidata passar nos mesmos testes que já passaram na referência.
 
 Ver [diário](2026-11-11-whatsmeow-offline-sync.md) e
 [plano](../plans/fix-whatsmeow-offline-sync.md) para estado e limites completos.
+
+## Adaptações de API da Evolution
+
+Além das quatro mudanças de assinatura encontradas pelo compilador, a revisão
+identificou dois contratos de resposta que precisavam de adaptação:
+
+- Blocklist passou de JIDs para Items com LID/PN; a API preserva DHash/JIDs por um
+  adapter próprio. Teste JSON demonstrou a regressão antes da correção.
+- IsOnWhatsApp agora pede addressing_mode=lid e fornece PhoneNumber separado.
+  user/check usa PN conhecido nos campos JID/RemoteJID e retorna o LID fornecido,
+  sem chamar lookup restrito aPN com um LID. Formato legado e not-found preservados.
+  A regressão foi observada também pela API local com os números exclusivos; só
+  booleanos de validação foram registrados, sem identificadores ou respostas brutas.
+
+SynchronousAck/UnifiedSessionInterval não corrigem esses contratos da aplicação.
+O send service pode usar o JID canônico LID para SDK SendMessage; isso será conferido
+com formatação padrão no laboratório, sem alterar a comparação que usa formatJid=false.

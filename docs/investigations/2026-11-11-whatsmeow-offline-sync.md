@@ -2,31 +2,33 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 18:11 BRT / 21:11 UTC. Fases 2/3/4 em andamento.
+Atualizado em 2026-11-11, 18:28 BRT / 21:28 UTC. Fases2/3/4 em andamento.
 
-- **Branch/base:** fix/whatsmeow-offline-sync, main 8d77799. Não tocar nos arquivos
-  pessoais não rastreados AGENTS.md e untitled.md. Nenhum push/PR executado.
-- **Código:** SDK c88388f (117 commits após b572), Go mínimo 1.26 e imagem Go1.26.5.
-  Commit da candidata em construção 5b0e96e; correções Archive, encerramento/reconexão, migração
-  compartilhada e contratos de blocklist. Defaults SynchronousAck=false e
-  UnifiedSessionInterval=0, customizações de handshake preservadas.
-- **Checks:** build/vet/test completos e race dos pacotes alterados passaram após
-  rodada 1. Regressões com vermelho/verde documentadas abaixo.
-- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2, todos aceitos e corrigidos
-  com testes antes/depois. R4 em execução, sessão95506, snapshot limpo em5b0e96e.
-  Não modificar snapshot build/offline-sync-review enquanto ativa. Log de decisões
-  .code-review-log/fix-whatsmeow-offline-sync.md. Ainda não veio rodada limpa.
+- **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
+  não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
+  não ler/modificar/adicionar untitled.md. Nenhum push/PR.
+- **Código:** HEAD1bd56bfdd1899196814abbdf102d8c00daff52cd. SDKc88388f,
+  Go mínimo1.26, DockerBuilder1.26.5. Mutex porID cobre iniciar/reconectar/retirar;
+  pedidos de settings pendentes preservados na publicação; Disconnect aguarda
+  encerramento. Archive e blocklist corrigidos, handshake do fork preservado.
+- **Checks:** build/vet/test completos e race dos três serviços passaram apósR4;
+  regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
+- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; todos aceitos/corrigidos.
+  R5 em execução (sessão69210), snapshot limpo build/offline-sync-review em1bd56bf.
+  Não modificar snapshot enquanto roda. Ainda SEM rodada limpa. Decisões em
+  .code-review-log/fix-whatsmeow-offline-sync.md; relatórios round-1.txt...round-5.txt.
 - **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
   Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
   contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual:** imagem5b0e96e construindo (sessão70209, candidate-build-round3.log).
-  API local ainda4a137f1, ID db384371e4b0186174798c5442dcc76665c1c3b4aacc7fcdfc6a4f6ad06d41c7.
-  Primeiros ciclos candidata after-72be3eb9 passaram10/10 Completed/30entrada/10saída,
-  mas são intermediários: foram corrigidos mais casos de callbacks/concorrência,
-  então repetir ambos métodos na próxima imagem antes da duração contínua.
+- **Etapa atual:** construir imagem1bd56bf (sessão58927, candidate-build-round4.log).
+  API local ainda5b0e96e, ID8d7165a354a9e03bb48b61d1d2db1a0af120fdf8463a080f19ab91f71901096f.
+  Essa imagem passou API92222051 e socketaf051f2f, 10ciclos cada, Completed20/20,
+  entrada60/60, saída20/20, sem panics/stream errors. Mídia curta c5e7d566 passou6/6.
+  Resultados INTERMEDIÁRIOS pois código mudou depois. Nenhum experimento ativo agora.
+  Nova imagem deve repetir ambos ciclos/mídia e só então iniciar duração≥7200s.
 - **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
   local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
   NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
@@ -49,8 +51,11 @@ Atualizado em 2026-11-11, 18:11 BRT / 21:11 UTC. Fases 2/3/4 em andamento.
   resolver rodada2 com regressões/repetir revisão até limpa; imagem final; PR fork.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
-  Sem leitura de segredos/DB, sem temporários ou mutação remota. Nova leitura de
-  logs em contagens2h (sessão1716), sem mensagens/telefones, em andamento.
+  Sem leitura de segredos/DB, sem temporários ou mutação remota. Contagens de logs
+  realizadas sem conteúdo/telefones/IDs, concluídas. Service logs32stream_errors
+  em2h evoapi1. Amostra instance.log: Preview41/Completed9,14instâncias com mais
+  previews que conclusões,5com conclusão; cap porarquivo atingido em alguns casos,
+  não censo/taxa. JSONs sanitizados no estado privado. Não requer mais acesso remoto.
 - **Regras finais:** push apenas academia, PR inglês convencional; NÃO origin,
   merge, publicação ou deploy. Plano completo em ../plans/fix-whatsmeow-offline-sync.md.
 
@@ -860,3 +865,32 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   remove locks por referência quando não existem usuários/esperas.
 - Relatórios de5b0e96e conservados como intermediários; nova candidata terá outro
   source/imageID e repetirá ambos ciclos/mídia/duração. Não houve publicação.
+
+## Quinta revisão e compatibilidade da consulta de números (18:38 BRT)
+
+- Rodada5 encerrou com1P2: novaSDK responde IsOnWhatsApp com canonicalJID=LID e
+  PhoneNumber=PN; performCheckUser antigo consultava GetLIDForPN com LID e alterava
+  os campos públicos JID/RemoteJID. Achado aceito, sem novos achados de lifecycle.
+- Extraído mapper sem mudar comportamento para prova. Teste RED mostrou PN-only
+  lookup recebendo LID e campo público retornandoLID. GREEN após preferir PN
+  conhecido e usar LID fornecido direto; formato antigo e usuário ausente cobertos.
+- Prova HTTP local na imagem1bd56bf (antes do fix) confirmou: usuário de teste
+  encontrado, JID/RemoteJID não preservamPN e LID não fornecido. Não imprimir os
+  valores. Repetir após rebuild e conferir envio com formatação padrão, além dos
+  ciclos comparáveis com formatJid=false.
+- API da imagem1bd56bf after-4e718ba0 passou10/10 Completed, entrada30/30, saída10/10,
+  sem panics/streams. Socket1bd em andamento (log candidate-socket-1bd56bf.log).
+  O novo fix é de resposta HTTP; ainda assim imagem final deve identificar o novo
+  commit e repetir comparação antes da duração.
+- Checks/revisão6 e rebuild a seguir. Duração de2h continua pendente, sem abreviar.
+
+## Checks após adaptação PN/LID (18:39 BRT)
+
+- Build/vet/suíte completos código0, race dos três serviços código0.
+- Socket1bd after-socket-4ec7cd29 passou10/10 Completed, entrada30/30, saída10/10,
+  sem panics/streams, dez restarts induzidos e remetente autenticado em todas quedas.
+- Relatórios1bd preservados como intermediários porque /user/check foi adaptado
+  depois. Próxima imagem deve validar HTTP PN/LID verde, envio com formatação
+  padrão, repetição dos ciclos e mídia e duração contínua≥7200s, sem abreviar.
+- Relatório consolidado preparado como RASCUNHO em whatsmeow-validation.md;
+  campos pendentes permanecem explícitos e serão preenchidos com execução final.

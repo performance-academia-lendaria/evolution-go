@@ -13,6 +13,7 @@ import (
 	"github.com/evolution-foundation/evolution-go/pkg/utils"
 	whatsmeow_service "github.com/evolution-foundation/evolution-go/pkg/whatsmeow/service"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -238,14 +239,27 @@ func (u *userService) performCheckUser(client *whatsmeow.Client, numbers []strin
 		return nil, false
 	}
 
+	return mapCheckUserResponses(resp, client.Store.LIDs, formatJid)
+}
+
+func mapCheckUserResponses(resp []types.IsOnWhatsAppResponse, lids store.LIDStore, formatJid bool) (*CheckUserCollection, bool) {
 	uc := new(CheckUserCollection)
 	shouldRetry := false
 
 	for _, item := range resp {
+		// The SDK now addresses successful queries by LID and supplies PN
+		// separately. Keep the HTTP identity phone-based whenever PN is known.
+		jid := item.JID
+		if item.PhoneNumber.Server == types.DefaultUserServer {
+			jid = item.PhoneNumber
+		}
 		// Consultar LID Store para obter LID associado ao JID
 		var lidStr *string
-		if client.Store.LIDs != nil {
-			if lid, err := client.Store.LIDs.GetLIDForPN(context.TODO(), item.JID); err == nil && !lid.IsEmpty() {
+		if item.JID.Server == types.HiddenUserServer {
+			lidString := item.JID.String()
+			lidStr = &lidString
+		} else if lids != nil && jid.Server == types.DefaultUserServer {
+			if lid, err := lids.GetLIDForPN(context.TODO(), jid); err == nil && !lid.IsEmpty() {
 				lidString := fmt.Sprintf("%v", lid)
 				lidStr = &lidString
 			}
@@ -255,7 +269,7 @@ func (u *userService) performCheckUser(client *whatsmeow.Client, numbers []strin
 		remoteJID := item.Query // Default to original query
 		if item.IsIn {
 			// When user exists on WhatsApp, use the JID returned by WhatsApp
-			remoteJID = fmt.Sprintf("%v", item.JID)
+			remoteJID = jid.String()
 		} else if formatJid {
 			// If user not found and we used formatJid=true, we should retry with formatJid=false
 			shouldRetry = true
@@ -265,7 +279,7 @@ func (u *userService) performCheckUser(client *whatsmeow.Client, numbers []strin
 			var msg = User{
 				Query:        item.Query,
 				IsInWhatsapp: item.IsIn,
-				JID:          fmt.Sprintf("%v", item.JID),
+				JID:          jid.String(),
 				RemoteJID:    remoteJID,
 				LID:          lidStr,
 				VerifiedName: item.VerifiedName.Details.GetVerifiedName(),
@@ -275,7 +289,7 @@ func (u *userService) performCheckUser(client *whatsmeow.Client, numbers []strin
 			var msg = User{
 				Query:        item.Query,
 				IsInWhatsapp: item.IsIn,
-				JID:          fmt.Sprintf("%v", item.JID),
+				JID:          jid.String(),
 				RemoteJID:    remoteJID,
 				LID:          lidStr,
 				VerifiedName: "",
