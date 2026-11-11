@@ -2,19 +2,21 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 15:42 BRT / 18:42 UTC. Primeira execução encerrada;
-extensão de queda real preparada e validada, prestes a iniciar.
+Atualizado em 2026-11-11, 15:48 BRT / 18:48 UTC. Primeira execução encerrada;
+experimento com quedas reais em andamento.
 
 - **Etapa atual:** Fase 1 ampliada por autorização do Tuan para quedas reais de socket
-  só no receptor. Proxy validado e aplicado, ambos autenticados. Preparação separada
-  dos ciclos. Nenhuma autorização para atualizar biblioteca.
+  só no receptor. Execução `before-socket-1d697be3` em andamento, sessão `46833`.
+  Nenhuma autorização para atualizar biblioteca.
 - **Branch:** `fix/whatsmeow-offline-sync`.
 - **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
   `git log -3 --oneline` para os commits locais de documentação/preparação.
 - **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** executar
+- **Próximo passo:** acompanhar a execução em andamento, iniciada com
   `python3 scripts/offline-sync/experiment.py --label before --method socket --cycles 10 --down-seconds 10 --recovery-seconds 180`
-  e registrar a nova sessão/relatório no próximo checkpoint.
+  na sessão `46833`. [Relatório incremental de socket](2026-11-11-offline-sync-before-socket-1d697be3.md).
+  JSON: `build/offline-sync-lab/results/before-socket-1d697be3.json`.
+  Não iniciar outra execução concorrente. Parar e perguntar ao Tuan se não reproduzir.
   Tuan escolheu explicitamente essa alternativa após a não reprodução inicial.
   Não atualizar whatsmeow nem alterar código Go.
   Comando da primeira execução:
@@ -42,7 +44,8 @@ extensão de queda real preparada e validada, prestes a iniciar.
   `proxy.env`; prova de validação em `proxy-validated.json`.
 - **Processos em execução:** os quatro containers acima e a página auxiliar
   `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
-  `57886`. Experimento `58062` encerrado; nenhum ciclo ou revisão em background.
+  `57886`; experimento socket `46833` em andamento. Experimento API `58062` encerrado;
+  nenhuma revisão Codex.
 - **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
   administrativa do laboratório foi copiada para a área de transferência e, após
   autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
@@ -396,6 +399,21 @@ telefones, payloads completos ou conteúdo de mensagem.
   `gate_open=true`, um túnel ativo, três aceitos, zero rejeições de autenticação.
 - Sem alteração no Go, biblioteca, pareamentos ou imagem. Pronto para nova
   execução; aplicar esta correção não iniciou outra reconexão.
+
+### 2026-11-11, 15:48 BRT — Queda real iniciada; primeiro ciclo em observação
+
+- Roteiro corrigido salvo em
+  `7460f77 test(whatsapp): verify fault routing with local metadata`.
+- Nova execução `before-socket-1d697be3`, sessão `46833`, relatório incremental
+  separado. A prova inicial de recebimento pelo túnel passou antes da primeira queda.
+- Primeiro ciclo: um túnel TCP fechado, queda observada, remetente continuou
+  autenticado, envio durante aceito com passagem fechada, gate restaurado e receptor
+  reconectado automaticamente pelo código original.
+- Log selecionado confirma um restart por `Disconnected`, um Connected, um Preview,
+  zero Completed, zero panics e zero erros de stream até o checkpoint. Nenhuma
+  chamada manual à rota de reconexão durante o ciclo.
+- Marcadores antes/durante/depois e prova de saída entregues. Janela de 180 s
+  ainda em curso. Não há conclusão sobre o incidente completo neste checkpoint.
 
 ## Comparação antes e depois
 

@@ -13,8 +13,8 @@ imagem e deploy ficam fora da autorização atual.
 
 **Estado atual:** primeira execução por dez ciclos de `ReconnectClient` não
 reproduziu; resultados preservados em `before-588b5cb3`. Tuan autorizou em seguida
-quedas reais de socket somente no receptor, mantendo remetente online. Preparar
-essa extensão da Fase 1 na mesma imagem, sem mudança de Go/dependência.
+quedas reais só no receptor. Proxy validado, método em execução em
+`before-socket-1d697be3`, com link e sessão no diário. Mesma imagem, Go e biblioteca.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
