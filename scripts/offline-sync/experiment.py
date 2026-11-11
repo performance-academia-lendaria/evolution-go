@@ -247,6 +247,9 @@ def run(args):
                 save()
                 time.sleep(2)
             cycle["finished_utc"] = utc()
+            if not cycle.get("during_confirmed"):
+                cycle["result"] = "inconclusive_during_window"
+                raise lab.LabError("STOP: could not confirm sender acknowledgement during the outage; ask before changing the method.")
             missing = not all(cycle["received"].get(phase) for phase in ("during", "after"))
             if cycle["logs"]["offline_preview"] and not cycle["logs"]["offline_completed"] and missing and cycle["outbound_received"]:
                 cycle["result"] = "incident_reproduced"
@@ -255,9 +258,6 @@ def run(args):
                 print(json.dumps(cycle), flush=True)
                 # Preserve the failing session for read-only diagnosis; do not recover it.
                 return
-            if not cycle.get("during_confirmed"):
-                cycle["result"] = "inconclusive_during_window"
-                raise lab.LabError("STOP: could not confirm sender acknowledgement during the outage; ask before changing the method.")
             if missing or not cycle["outbound_received"]:
                 cycle["result"] = "delivery_failed"
                 raise lab.LabError("STOP: delivery failed without the complete incident signature; ask before expanding scope.")

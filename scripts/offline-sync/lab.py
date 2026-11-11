@@ -300,9 +300,10 @@ def socket_setup():
     raise LabError("Target did not authenticate through proxy; stop before recovery.")
 
 
-def qr_page():
+def qr_page(instances=None, port=18081):
     """Show live QRs without invoking /instance/qr, which can restart paired clients."""
-    instances = json.loads((STATE / "instances.json").read_text())
+    if instances is None:
+        instances = json.loads((STATE / "instances.json").read_text())
     key = admin_key()
     page = b'''<!doctype html><html lang="pt-BR"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -367,8 +368,8 @@ document.getElementById('error').textContent='';}catch(e){document.getElementByI
             self.end_headers()
             self.wfile.write(body)
 
-    server = HTTPServer(("127.0.0.1", 18081), Viewer)
-    print("Live pairing page: http://127.0.0.1:18081", flush=True)
+    server = HTTPServer(("127.0.0.1", port), Viewer)
+    print("Live pairing page: http://127.0.0.1:" + str(port), flush=True)
     server.serve_forever()
 
 

@@ -2,54 +2,51 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, Fase 2 em andamento. SDK oficial atualizado no código;
-lab ainda roda imagem de referência, com licença e dois pareamentos preservados.
+Atualizado em 2026-11-11, 17:46 BRT / 20:46 UTC. Fases 2/3 em andamento.
 
-- **Etapa atual:** adaptar incompatibilidades de compilação e concluir checks;
-  preparar imagem candidata para validação local. A causa de produção não foi provada.
-- **Branch:** `fix/whatsmeow-offline-sync`.
-- **Base:** `8d7779988d435842570460f7aeb07ecb953ba548` (`main`). Consultar
-  `git log -3 --oneline` para os commits locais de documentação/preparação.
-- **Plano completo:** [plano de trabalho](../plans/fix-whatsmeow-offline-sync.md).
-- **Próximo passo:** concluir build/vet/suíte; commitar candidata; construir imagem
-  linux/amd64 com contexto Git sem segredos; preservar bancos temporários internamente
-  e trocar somente API local. Repetir os dois experimentos, mídia e duração ≥2h.
-  [Análise dos commits/opções](2026-11-11-whatsmeow-upgrade-analysis.md).
-- **Antes:** API `588b5cb3` e socket `1d697be3` encerrados, 10 ciclos cada,
-  sem congelamento/perda. Preview 20/20, Completed 0/20. Tuan autorizou prosseguir
-  com candidata experimental apesar da não reprodução. Não há experimentos ativos.
-- **Dependência do Tuan:** dois números exclusivos de teste confirmados e ambos
-  pareados. Não é necessário novo QR para as sessões já salvas.
-- **Recursos locais ativos:** containers `evo-offline-sync-lab-api`,
-  `evo-offline-sync-lab-receiver`, `evo-offline-sync-lab-postgres` e
-  `evo-offline-sync-lab-proxy`; redes
-  `evo-offline-sync-lab-data` (interna) e `evo-offline-sync-lab-egress` (saída).
-  PostgreSQL temporário usa tmpfs. Nenhum recurso de produção montado.
-- **Acesso local:** `http://127.0.0.1:18080/manager`; somente a API publica porta,
-  restrita a `127.0.0.1:18080`. Banco e receptor não publicam portas.
-- **Estado local restrito e ignorado:** `build/offline-sync-lab/`; `api.env` e
-  `postgres.env` contêm apenas credenciais novas do laboratório e não devem ser
-  impressos. Diretórios 0700; arquivos de configuração/identidade 0600.
-- **Proxy de falha:** somente `target` está configurado para seu túnel local.
-  Remetente direto, sem proxy. Controle em loopback 8083 dentro do container;
-  sem porta publicada. Configuração/credenciais geradas em `proxy.json` e
-  `proxy.env`; prova de validação em `proxy-validated.json`.
-- **Processos em execução:** os quatro containers acima e a página auxiliar
-  `python3 scripts/offline-sync/lab.py qr-page`, loopback 18081, sessão de execução
-  `57886`. Experimentos socket `46833` e API `58062` encerrados; nenhum teste ou
-  revisão Codex em execução. Containers preservados com os dois pareamentos e licença.
-- **Segredos:** nenhuma licença ou credencial de produção lida ou copiada. A chave
-  administrativa do laboratório foi copiada para a área de transferência e, após
-  autorização explícita do Tuan às 14:42 BRT, exibida no chat. Seu valor não consta
-  em arquivos versionados. A exceção vale somente para essa chave de teste.
-- **Produção:** nenhum acesso à EC2 ou aos bancos nesta sessão; nenhuma alteração.
-- **Push, PR e revisão Codex:** ainda não executados. Build/vet/suíte em validação.
-- **Teste de regressão Archive:** primeiro vermelho confirmado na biblioteca
-  antiga e após atualização; fix já verde nos três casos. Regressões de reconexão
-  também com vermelho/verde; suíte completa e testes com imagem candidata pendentes.
-- **Limpeza disponível, não executada:**
-  `python3 scripts/offline-sync/lab.py down`; apaga o banco temporário e preserva
-  arquivos locais para limpeza explícita. Não rodar durante a ativação/medição.
+- **Branch/base:** fix/whatsmeow-offline-sync, main 8d77799. Não tocar nos arquivos
+  pessoais não rastreados AGENTS.md e untitled.md. Nenhum push/PR executado.
+- **Código:** SDK c88388f (117 commits após b572), Go mínimo 1.26 e imagem Go1.26.5.
+  Commit da candidata 1df14a7; correções Archive, encerramento/reconexão, migração
+  compartilhada e contratos de blocklist. Defaults SynchronousAck=false e
+  UnifiedSessionInterval=0, customizações de handshake preservadas.
+- **Checks:** build/vet/test completos e race dos pacotes alterados passaram após
+  rodada 1. Regressões com vermelho/verde documentadas abaixo.
+- **Revisão:** rodada 1: 2 P1 + 2 P2 aceitos/corrigidos. Rodada 2 em execução,
+  sessão 60989, snapshot limpo build/offline-sync-review em 1df14a7. Não modificar
+  snapshot enquanto ativa. Decisões .code-review-log/fix-whatsmeow-offline-sync.md.
+- **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
+  Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
+  contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
+  cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
+  O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
+  experimental apesar disso; não implica causa confirmada ou deploy aprovado.
+- **Etapa atual:** trocar somente API local pela candidata revisada (sessão 80505),
+  retomar devices existentes e repetir os dois métodos. Imagem linux/amd64 local:
+  tuanmedeiros/evolution-go:0.7.2-0.1.0-whatsmeow-c88388f-candidate,
+  ID sha256:635d1812bba1dc6c5c79a765e0394770d5c032d0e3f6e48139f0e298d2e679fd.
+- **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
+  local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
+  NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
+  sensível ignorado em build/offline-sync-lab; não imprimir env/instances/proxy.
+  Target por proxy local, sender direto. Gate aberto. Experimentos mutuamente
+  exclusivos via experiment.lock; nenhum ciclo ativo entre as trocas de imagem.
+- **Bancos locais:** offline_sync_auth e offline_sync_instances; cópias anteriores
+  internas com sufixo _before_c88388f. Schema SDK16 agora; imagem antiga conectou e
+  passou ambos testes nesse schema, evidência local de compatibilidade de rollback.
+  Primeira candidata teve migração concorrente de v14->15; não foi perda de pairing.
+- **Mídia:** prova curta da imagem antiga passou 6/6 (texto/imagem/áudio duas vias),
+  relatório media-before-19d178f4. Candidata ainda não fez mídia nem duração ≥2h.
+- **QR novo:** helper scripts/offline-sync/pairing_check.py preparado, não executado;
+  pergunta ao Tuan pendente para leitura adicional em companion local separado.
+  Somente depois dos ciclos; não iniciar pareamento durante duração contínua.
+- **Próximos passos:** ciclos candidata; mídia/QR e ≥7200s tráfego periódico;
+  resolver rodada2 com regressões/repetir revisão até limpa; imagem final; PR fork.
+- **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
+  inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
+  Sem leitura de segredos/logs/DB, sem temporários remotos, sem mutação remota.
+- **Regras finais:** push apenas academia, PR inglês convencional; NÃO origin,
+  merge, publicação ou deploy. Plano completo em ../plans/fix-whatsmeow-offline-sync.md.
 
 ## Critério de registro
 
@@ -686,3 +683,56 @@ eventual PR deverão distinguir validação local de confirmação da causa de p
   encerramento. Continuação de candidata já autorizada pelo pedido do Tuan.
 - Após correções da rodada 1: build/vet/suíte completos e race dos pacotes alterados
   passaram. Novas regressões vermelhas/verdes registradas acima e no review log.
+
+## Referência com contador corrigido — socket (17:46 BRT)
+
+- before-socket-a70c1164 código0, dez quedas TCP de 10s: Preview10, Completed10,
+  entrada30/30, saída10/10, remetente autenticado10/10, reinícios automáticos10
+  induzidos, nenhum panic/stream error. Gate restaurado. Incidente não reproduzido.
+- Execuções substituem a contagem de sincronização inválida dos primeiros relatos;
+  nenhuma conclusão causal da biblioteca é permitida por esse resultado.
+- Candidata corrigida construída de 1df14a7, apenas API local em troca; mesmos
+  bancos e devices preservados, sem outra migração no schema já atualizado.
+
+## QR adicional autorizado (17:47 BRT)
+
+- Tuan confirmou que pode escanear novamente com um dos dois números. Orientado a
+  usar o receptor (target, primeiro telefone), preservando companions atuais.
+- Antecipar validação de QR antes dos próximos ciclos para aproveitar disponibilidade
+  do Tuan. Helper pairing_check.py inicia instância separada; não altera instances.json.
+  Página loopback18082, log local pairing-check-page.log. Não iniciar quedas enquanto
+  o novo pareamento estiver em andamento. Depois confirmar autenticação e uma
+  mensagem de teste antes de seguir. Nenhum dispositivo de produção envolvido.
+
+## QR confirmado e correções rodada 2 (17:54 BRT)
+
+- Tuan escaneou QR adicional. Companion novo da candidata autenticou e recebeu
+  prova sintética no webhook (sem número/token/payload no registro). Página18082
+  continua somente leitura; estado privado separado de instances.json.
+- Todos os 3 achados da rodada2 aceitos e corrigidos, testes falharam antes e
+  passaram após (detalhes no review log). Delete/ClearInstanceCache agora aposentam
+  geração por cancelamento/espera; canais de parada nunca são fechados com callbacks
+  retidos. ForceReconnect usa ReconnectClient serializado. Roteiro rejeita janela
+  offline inválida antes de avaliar assinatura do incidente.
+- Verificação adicional encontrou início ainda sem MyClient publicado: teste
+  falhou porque o restart não cancelava a inicialização do banco. Run com contexto
+  agora é reservado sincronamente em StartClient antes do go; aposentadoria aguarda
+  stopped mesmo nessa fase; conexões/SQL usam contexto da geração. Worker fecha
+  socket/remove handlers ao terminar, antes de liberar reserva/notificar stopped.
+- Execução de ciclos da candidata aguarda rebuild destas correções. QR testou a SDK
+  nova, mas a imagem anterior ainda tem os defeitos de lifecycle demonstrados em
+  testes; não conta como candidata final nem validação de estabilidade completa.
+- Build/vet/suíte/race em execução para rodada2. Nenhum deploy/push/publicação.
+
+## Reserva de substituição e checks finais da rodada 2 (17:56 BRT)
+
+- TestStartClientWaitsForRetiringReservation falhou antes: substituição era
+  descartada se encontrasse reserva cancelada mas ainda não encerrada. Passou após
+  aguardar stopped e tentar reservar novamente; worker ativo continua compartilhado,
+  sem criação de socket duplicado. Cobre também entrada direta de Connect após stop.
+- Build/vet/suíte passaram com mudanças da rodada2; detector de race passou nos
+  três pacotes de serviço alterados, incluindo regressão adicional acima.
+- Nenhuma opção nova da SDK foi ligada: pareamento novo e reconexões da referência
+  completam sem isso. Candidata final ainda precisa dos seus ciclos e duração.
+- Preparar commit/rodada3 e rebuild. API local ainda roda imagem 635d..., com QR
+  validado; não iniciar duração enquanto houver alteração de código da candidata.

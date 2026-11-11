@@ -320,3 +320,80 @@ func TestStartInstancePreservesActiveWorkerChannel(t *testing.T) {
 		t.Fatal("redundant start replaced the active worker's published stop channel")
 	}
 }
+
+func TestClearCacheCancelsCallbacksWithoutClosingTheirSignal(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	kill := make(chan bool)
+	mycli := &MyClient{ctx: ctx, cancel: cancel, killSignal: kill, userID: "test"}
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{
+		myClientPointer: map[string]*MyClient{"test": mycli},
+		killChannel:     map[string]chan bool{"test": kill},
+		userInfoCache:   cache.New(time.Minute, time.Minute),
+		loggerWrapper:   logger_wrapper.NewLoggerManager(cfg),
+	}
+	if err := w.ClearInstanceCache("test", ""); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			t.Fatalf("late callback panicked after cache deletion: %v", err)
+		}
+	}()
+	mycli.signalStop()
+	if ctx.Err() == nil {
+		t.Fatal("deleted generation's callbacks were not canceled")
+	}
+}
+
+func TestReconnectRetiresWorkerStillInitializingStore(t *testing.T) {
+	readyForReconnectTest(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan struct{})
+	run := &clientRun{ctx: ctx, cancel: cancel, stopped: stopped}
+	go func() { <-ctx.Done(); close(stopped) }()
+	t.Cleanup(func() { cancel(); <-stopped })
+	errStop := errors.New("stop before replacement")
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+			select {
+			case <-stopped:
+			default:
+				t.Error("replacement bookkeeping began while old store initialization could still publish a client")
+			}
+			return nil, errStop
+		}}}
+	w.starts.Store("test", run)
+	_ = w.ReconnectClient("test")
+}
+
+func TestStartClientWaitsForRetiringReservation(t *testing.T) {
+	resetWAVersionInitializationForTest()
+	t.Cleanup(resetWAVersionInitializationForTest)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	old := &clientRun{ctx: ctx, cancel: cancel, stopped: make(chan struct{})}
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{config: cfg, loggerWrapper: logger_wrapper.NewLoggerManager(cfg)}
+	w.starts.Store("test", old)
+	returned := make(chan struct{})
+	go func() { w.StartClient(&ClientData{Instance: &instance_model.Instance{Id: "test"}}); close(returned) }()
+	select {
+	case <-returned:
+		t.Error("replacement was silently discarded while the old generation was retiring")
+	case <-time.After(100 * time.Millisecond):
+	}
+	w.starts.Delete("test")
+	close(old.stopped)
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("replacement did not proceed after retirement")
+	}
+	// The new worker exits at the readiness gate, before store/network work.
+	if value, exists := w.starts.Load("test"); exists {
+		<-value.(*clientRun).stopped
+	}
+}

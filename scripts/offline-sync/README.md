@@ -174,3 +174,17 @@ e receberam aviso; não usar seus zeros para comparar conclusão de sincronizaç
 A autorização do Tuan para prosseguir experimentalmente após não reproduzir está
 registrada no plano. Passar os mesmos testes em ambas versões não prova a causa
 nem a correção do congelamento de produção.
+
+## QR novo na candidata, preservando as sessões da comparação
+
+Depois de combinar a leitura com Tuan e encerrar os ciclos:
+
+```sh
+python3 scripts/offline-sync/pairing_check.py
+```
+
+A página separada `http://127.0.0.1:18082` usa um companion novo local, salvo em
+pairing-check.json ignorado. Escanear somente o QR target com o telefone de teste
+do receptor. Sender já pareado não precisa de leitura. Não remove nem desloga as
+sessões da comparação. A página usa consultas de status/info, sem endpoint QR
+mutante; não iniciar/reiniciar pareamento durante o teste contínuo de duas horas.
