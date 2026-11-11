@@ -2,7 +2,7 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 15:48 BRT / 18:48 UTC. Primeira execução encerrada;
+Atualizado em 2026-11-11, 16:05 BRT / 19:05 UTC. Primeira execução encerrada;
 experimento com quedas reais em andamento.
 
 - **Etapa atual:** Fase 1 ampliada por autorização do Tuan para quedas reais de socket
@@ -414,6 +414,20 @@ telefones, payloads completos ou conteúdo de mensagem.
   chamada manual à rota de reconexão durante o ciclo.
 - Marcadores antes/durante/depois e prova de saída entregues. Janela de 180 s
   ainda em curso. Não há conclusão sobre o incidente completo neste checkpoint.
+
+### 2026-11-11, 16:05 BRT — Metade das quedas reais concluída
+
+- Cinco ciclos socket concluíram todas as janelas; sexto em observação.
+- Nos cinco concluídos: cinco sockets encerrados, cinco quedas observadas, cinco
+  reinícios disparados por `Disconnected`, remetente autenticado durante todas
+  as quedas e gate restaurado em todas. Não confundir esses reinícios induzidos
+  com quedas espontâneas.
+- Entrega nos cinco ciclos: 15/15 marcadores no receptor e 5/5 provas de saída no
+  remetente. Dez segundos nominais de queda por ciclo; mesmos limites de 30/180 s.
+- Cinco Preview, zero Completed, zero panics e zero erros de stream nas janelas.
+  O sexto já entregou seus marcadores e prova de saída, ainda sem janela concluída.
+- Hipótese da dependência permanece aberta; nenhum congelamento reproduzido até
+  este checkpoint. Relatório incremental segue salvando cada etapa automaticamente.
 
 ## Comparação antes e depois
 
