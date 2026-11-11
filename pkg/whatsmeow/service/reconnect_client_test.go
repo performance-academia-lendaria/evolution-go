@@ -3,6 +3,7 @@ package whatsmeow_service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -479,5 +480,75 @@ func TestRuntimeSettingsRejectRetiringGeneration(t *testing.T) {
 		}}}
 	if err := w.UpdateInstanceSettings("test"); err == nil {
 		t.Fatal("connect fast path accepted a worker that is already retiring")
+	}
+}
+
+func TestStartCannotOvertakeCompleteRetirement(t *testing.T) {
+	readyForReconnectTest(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	run := &clientRun{ctx: ctx, cancel: cancel, stopped: make(chan struct{})}
+	client := whatsmeow.NewClient(&store.Device{}, nil)
+	handlerEntered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	client.AddEventHandler(func(any) { close(handlerEntered); <-release })
+	dispatched := make(chan struct{})
+	go func() { client.DangerousInternals().DispatchEvent(&events.Archive{}); close(dispatched) }()
+	<-handlerEntered
+	getCalled := make(chan struct{}, 1)
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{clientPointer: map[string]*whatsmeow.Client{"test": client},
+		loggerWrapper: logger_wrapper.NewLoggerManager(cfg), userInfoCache: cache.New(time.Minute, time.Minute),
+		instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+			getCalled <- struct{}{}
+			return nil, errors.New("stop before network")
+		}}}
+	w.starts.Store("test", run)
+	go func() { <-ctx.Done(); w.starts.Delete("test"); close(run.stopped) }()
+	retired := make(chan struct{})
+	go func() { _ = w.ClearInstanceCache("test", ""); close(retired) }()
+	deadline := time.Now().Add(time.Second)
+	for !client.DangerousInternals().IsExpectedDisconnect() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !client.DangerousInternals().IsExpectedDisconnect() {
+		t.Fatal("retirement did not reach handler-drain barrier")
+	}
+	started := make(chan struct{})
+	go func() { _ = w.StartInstance("test"); close(started) }()
+	select {
+	case <-getCalled:
+		t.Error("new start entered while old generation cleanup still owned published pointers")
+	case <-time.After(100 * time.Millisecond):
+	}
+	unblock()
+	<-dispatched
+	<-retired
+	<-started
+}
+
+func TestRepeatedStartPreservesLatestPendingSettings(t *testing.T) {
+	for _, published := range []bool{false, true} {
+		t.Run(fmt.Sprint("published_", published), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			original := &ClientData{Instance: &instance_model.Instance{Id: "test", Webhook: "http://old.invalid"}}
+			latest := &ClientData{Instance: &instance_model.Instance{Id: "test", Webhook: "http://new.invalid"}, Subscriptions: []string{"Archive"}}
+			run := &clientRun{ctx: ctx, cancel: cancel, stopped: make(chan struct{}), data: original}
+			w := &whatsmeowService{myClientPointer: make(map[string]*MyClient), userInfoCache: cache.New(time.Minute, time.Minute)}
+			if published {
+				w.myClientPointer["test"] = &MyClient{ctx: ctx, Instance: original.Instance}
+			}
+			w.starts.Store("test", run)
+			w.StartClient(latest)
+			if run.data.Instance.Webhook != latest.Instance.Webhook || len(run.data.Subscriptions) != 1 {
+				t.Fatal("successful repeated start discarded the pending webhook/subscription update")
+			}
+			if published && w.myClientPointer["test"].webhookUrl != latest.Instance.Webhook {
+				t.Fatal("update arrived during publication but active worker kept stale webhook")
+			}
+		})
 	}
 }

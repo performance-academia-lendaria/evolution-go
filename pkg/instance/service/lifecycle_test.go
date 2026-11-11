@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/evolution-foundation/evolution-go/pkg/config"
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
@@ -76,5 +77,31 @@ func TestForceReconnectUsesSerializedLifecycle(t *testing.T) {
 	err := svc.ForceReconnect("test", "synthetic")
 	if !errors.Is(err, want) || service.directStarts != 0 {
 		t.Fatalf("force reconnect bypassed serialized retirement: error=%v direct_starts=%d", err, service.directStarts)
+	}
+}
+
+func TestDisconnectAcknowledgesOnlyAfterWorkerRetirement(t *testing.T) {
+	kill := make(chan bool)
+	stopReceived, finishCleanup := make(chan struct{}), make(chan struct{})
+	go func() { <-kill; close(stopReceived) }()
+	service := &lifecycleService{clear: func() error { <-finishCleanup; return nil }}
+	svc := instances{killChannel: map[string]chan bool{"test": kill}, whatsmeowService: service}
+	returned := make(chan error, 1)
+	go func() { returned <- svc.stopAndWait(&instance_model.Instance{Id: "test"}) }()
+	<-stopReceived
+	select {
+	case <-returned:
+		close(finishCleanup)
+		t.Fatal("disconnect acknowledged while old worker cleanup was still pending")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(finishCleanup)
+	select {
+	case err := <-returned:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("disconnect did not complete after retirement")
 	}
 }

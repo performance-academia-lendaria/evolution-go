@@ -2,29 +2,31 @@
 
 ## Ponto de retomada
 
-Atualizado em 2026-11-11, 17:46 BRT / 20:46 UTC. Fases 2/3 em andamento.
+Atualizado em 2026-11-11, 18:11 BRT / 21:11 UTC. Fases 2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main 8d77799. Não tocar nos arquivos
   pessoais não rastreados AGENTS.md e untitled.md. Nenhum push/PR executado.
 - **Código:** SDK c88388f (117 commits após b572), Go mínimo 1.26 e imagem Go1.26.5.
-  Commit da candidata 1df14a7; correções Archive, encerramento/reconexão, migração
+  Commit da candidata em construção 5b0e96e; correções Archive, encerramento/reconexão, migração
   compartilhada e contratos de blocklist. Defaults SynchronousAck=false e
   UnifiedSessionInterval=0, customizações de handshake preservadas.
 - **Checks:** build/vet/test completos e race dos pacotes alterados passaram após
   rodada 1. Regressões com vermelho/verde documentadas abaixo.
-- **Revisão:** rodada 1: 2 P1 + 2 P2 aceitos/corrigidos. Rodada 2 em execução,
-  sessão 60989, snapshot limpo build/offline-sync-review em 1df14a7. Não modificar
-  snapshot enquanto ativa. Decisões .code-review-log/fix-whatsmeow-offline-sync.md.
+- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2, todos aceitos e corrigidos
+  com testes antes/depois. R4 em execução, sessão95506, snapshot limpo em5b0e96e.
+  Não modificar snapshot build/offline-sync-review enquanto ativa. Log de decisões
+  .code-review-log/fix-whatsmeow-offline-sync.md. Ainda não veio rodada limpa.
 - **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
   Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
   contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual:** trocar somente API local pela candidata revisada (sessão 80505),
-  retomar devices existentes e repetir os dois métodos. Imagem linux/amd64 local:
-  tuanmedeiros/evolution-go:0.7.2-0.1.0-whatsmeow-c88388f-candidate,
-  ID sha256:635d1812bba1dc6c5c79a765e0394770d5c032d0e3f6e48139f0e298d2e679fd.
+- **Etapa atual:** imagem5b0e96e construindo (sessão70209, candidate-build-round3.log).
+  API local ainda4a137f1, ID db384371e4b0186174798c5442dcc76665c1c3b4aacc7fcdfc6a4f6ad06d41c7.
+  Primeiros ciclos candidata after-72be3eb9 passaram10/10 Completed/30entrada/10saída,
+  mas são intermediários: foram corrigidos mais casos de callbacks/concorrência,
+  então repetir ambos métodos na próxima imagem antes da duração contínua.
 - **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
   local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
   NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
@@ -37,14 +39,18 @@ Atualizado em 2026-11-11, 17:46 BRT / 20:46 UTC. Fases 2/3 em andamento.
   Primeira candidata teve migração concorrente de v14->15; não foi perda de pairing.
 - **Mídia:** prova curta da imagem antiga passou 6/6 (texto/imagem/áudio duas vias),
   relatório media-before-19d178f4. Candidata ainda não fez mídia nem duração ≥2h.
-- **QR novo:** helper scripts/offline-sync/pairing_check.py preparado, não executado;
-  pergunta ao Tuan pendente para leitura adicional em companion local separado.
-  Somente depois dos ciclos; não iniciar pareamento durante duração contínua.
+- **QR novo:** Tuan já escaneou companion separado com mesmo número receptor;
+  autenticou e recebeu prova na SDK nova/imagem1df14a7. Resultado sanitizado em
+  build/offline-sync-lab/pairing-check-result.json. Página18082 sessão87951; após
+  troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
+  Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
+  respondido no chat, telefone não salvo neste diário.
 - **Próximos passos:** ciclos candidata; mídia/QR e ≥7200s tráfego periódico;
   resolver rodada2 com regressões/repetir revisão até limpa; imagem final; PR fork.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
-  Sem leitura de segredos/logs/DB, sem temporários remotos, sem mutação remota.
+  Sem leitura de segredos/DB, sem temporários ou mutação remota. Nova leitura de
+  logs em contagens2h (sessão1716), sem mensagens/telefones, em andamento.
 - **Regras finais:** push apenas academia, PR inglês convencional; NÃO origin,
   merge, publicação ou deploy. Plano completo em ../plans/fix-whatsmeow-offline-sync.md.
 
@@ -773,3 +779,84 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   do contador de tentativas de callback. Não usar essa linha como taxa de quedas.
 - Preparar rodada4 no novo commit e rebuild, preservando somente dois clientes
   usados pela comparação. QR adicional já foi confirmado sem novo pedido ao Tuan.
+
+## Candidata5b0e96e — identidade e dez ciclos API (18:12 BRT)
+
+- Imagem local linux/amd64 construída sem publicar:
+  sha256:8d7165a354a9e03bb48b61d1d2db1a0af120fdf8463a080f19ab91f71901096f.
+- Inspeção do binário real em execução confirmou Go1.26.5, whatsmeow
+  v0.0.0-20261110152934-c88388f983b4, CGO=1, GOOS=linux, GOARCH=amd64,
+  VERSION0.7.2-0.1.0. SHA256server:
+  30057abe29eb6c6bcaa7bd23552381da47f11355d5fdba6050c4fe72c5753202.
+  Cópia temporária local do binário apagada em finally; metadados sem segredos em
+  build/offline-sync-lab/candidate-binary-metadata.json. Não houve arquivo remoto.
+- after-92222051: dez ciclos API, Completed10/10 e Preview10/10, entrada30/30,
+  saída10/10, zero callbacks de restart de gerações canceladas, panics0/stream0.
+  Mantida janela180s e dispositivos da referência. Não reproduziu incidente.
+- Socket final inicia agora: 10quedas reais de10s só receptor, mesmas janelas e
+  método da referência, log candidate-socket-final.log. Não trocar API durante teste.
+- Nova leitura remota de service logs (2h, cap100000 não atingido) retornou32
+  stream_errors em evoapi1 e0 em evoapi3; não continha logs de eventos do logger
+  da aplicação, portanto NÃO permite concluir ausência de Completed. Consulta
+  subsequente busca somente contagens dos arquivos instance.log via LOG_DIRECTORY,
+  sem imprimir caminhos, dados livres, telefones ou mensagens; sem temporários.
+- Revisão4 em andamento; duração contínua ainda não começou.
+
+## Rechecagem de produção somente por contagens (18:12 BRT)
+
+- Leitura remota processada no servidor, sem conteúdo livre/telefones/IDs em claro.
+  LOG_DIRECTORY foi consultado isoladamente (somente caminho não secreto), arquivos
+  instance.log lidos via tail limitado e filtrados por timestamp JSON das últimas2h.
+  Nenhum arquivo temporário criado na EC2; nenhum estado, serviço ou banco alterado.
+- evoapi1: 104 arquivos, 249871 linhas examinadas; contagens filtradas por2h:
+  Connected46, Preview41, Completed9, callbacks de restart45. Cinco instâncias com
+  pelo menos uma conclusão; 14 com mais previews que conclusões. **Há truncamento
+  possível em arquivos que atingiram tail10000**: estes são totais de amostra, não
+  censo/medida de taxa nem prova de congelamento por instância. Nenhuma mensagem de
+  produção enviada ou lida; nenhuma ação de recuperação.
+- evoapi3: 3 arquivos,26linhas, nenhum evento de sync/restart nessa janela, sem
+  cap atingido. Isso não prova saúde/recebimento porque tráfego não foi testado.
+- Leitura separada de service logs (sem cap atingido) contou32 ocorrências de
+  stream:error em evoapi1 nas2h e0 em evoapi3. Não atribuir cada linha a uma conexão
+  ou telefone, nem misturar com ciclos induzidos do laboratório.
+- A evidência de produção continua compatível com o relato de sincronização que
+  não conclui em parte das instâncias; a correção do contador local não invalida
+  aquele relato. Não confirma causalidade da SDK e não substitui reprodução local.
+- JSONs sanitizados em production-log-counts-2h.json e
+  production-instance-log-counts-2h.json no estado ignorado. Nenhuma nova leitura
+  de produção necessária para continuar os testes locais neste momento.
+
+## Quarta revisão e lifecycle compartilhado (18:26 BRT)
+
+- Candidata5b0e96e: socket after-socket-af051f2f passou10/10 Completed,30/30 entrada,
+  10/10 saída, dez restarts induzidos, sem panics/streams. Prova curta mídia
+  media-after-c5e7d566 passou6/6 nas duas vias. Receptor foi reiniciado sozinho após
+  ciclos para carregar allowlist de Completed; API/DB/sockets permaneceram ativos.
+- Rodada4 Codex: 2P2, sem P1. Ambos aceitos/corrigidos com regressão RED/GREEN.
+  Reserva do worker não impedia outro StartClient de publicar antes de terminar
+  limpeza do chamador: mutex porID agora cobre StartClient, StartInstance,
+  reconexão e ClearInstanceCache por operação completa. Usado KeyedMutex de util
+  já presente (agora importação direta), com refcount e descarte de locks ociosos.
+- Pedido Connect durante inicialização antes perdia webhook/subscriptions novos.
+  Agora run.data guarda pedido mais recente e é lido sob mesmo mutex antes da
+  publicação. Se publicação acabou enquanto pedido aguardava, aplica também ao
+  MyClient/cache existente. Casos anterior/posterior à publicação testados.
+- Complemento: Disconnect antes confirmava ao receber kill, embora limpeza ainda
+  pendente. Teste demonstrou isso; agora aguarda aposentadoria via ClearInstanceCache
+  antes de retornar e persiste Connected=false. Espera de kill limitada a5s quando
+  worker já foi cancelado. Contexto termina antes de drenar SDK/handlers na saída.
+- Repetir checks completos/race e rodada5; reconstruir imagem e repetir ambos
+  ciclos antes da duração. Duração de2h ainda NÃO iniciada. Código alterou depois
+  dos resultados de5b0e96e, portanto eles ficam intermediários, não prova final.
+- Produção permanece sem mutações, sem novos acessos além das contagens registradas.
+
+## Checks da correção da rodada4 (18:26 BRT)
+
+- go build ./..., go vet ./..., go test ./... passaram, código0.
+- go test -race dos três pacotes alterados passou, código0. Regressões da rodada4
+  tiveram vermelho/verde antes da suíte completa. Iniciar rodada5 com mesmas opções.
+- Importação direta de go.mau.fi/util apenas para KeyedMutex já distribuído pela
+  SDK, sem nova versão baixada; go mod tidy atualizado. Zero valor funciona e
+  remove locks por referência quando não existem usuários/esperas.
+- Relatórios de5b0e96e conservados como intermediários; nova candidata terá outro
+  source/imageID e repetirá ambos ciclos/mídia/duração. Não houve publicação.

@@ -21,6 +21,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/skip2/go-qrcode"
+	"go.mau.fi/util/exsync"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -70,6 +71,7 @@ type WhatsmeowService interface {
 type whatsmeowService struct {
 	reconnects         singleflight.Group
 	starts             sync.Map
+	lifecycles         exsync.KeyedMutex[string]
 	deviceStore        deviceStoreInitializer
 	instanceRepository instance_repository.InstanceRepository
 	authDB             *sql.DB
@@ -132,6 +134,8 @@ type MyClient struct {
 
 // clientRun is published before asynchronous store/connection initialization.
 type clientRun struct {
+	dataMu  sync.Mutex
+	data    *ClientData
 	ctx     context.Context
 	cancel  context.CancelFunc
 	stopped chan struct{}
@@ -181,6 +185,19 @@ type ProxyConfig struct {
 	Username string `json:"username"`
 }
 
+func (w *whatsmeowService) lockLifecycle(id string) func() {
+	return w.lifecycles.WithLock(id)
+}
+
+func (w *whatsmeowService) runtimeClient(id string) *MyClient {
+	if value, exists := w.starts.Load(id); exists {
+		run := value.(*clientRun)
+		run.dataMu.Lock()
+		defer run.dataMu.Unlock()
+	}
+	return w.myClientPointer[id]
+}
+
 func (w *whatsmeowService) ReconnectClient(instanceId string) error {
 	return w.reconnectClient(instanceId, nil)
 }
@@ -192,6 +209,8 @@ func (w *whatsmeowService) reconnectClient(instanceId string, expected *whatsmeo
 	}
 	for {
 		value, err, _ := w.reconnects.Do(instanceId, func() (interface{}, error) {
+			unlock := w.lockLifecycle(instanceId)
+			defer unlock()
 			current := w.clientPointer[instanceId]
 			if expected != nil && current != expected {
 				return reconnectResult{}, nil
@@ -240,7 +259,7 @@ func (w *whatsmeowService) restartClient(instanceId string) error {
 
 	// Passo 5: Iniciar nova instância como se fosse a primeira vez
 	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Starting fresh instance", instanceId)
-	return w.StartInstance(instanceId)
+	return w.startInstance(instanceId)
 }
 
 // retireClient cancels callbacks and waits for the old worker before removing its
@@ -345,8 +364,14 @@ func (w *whatsmeowService) ForceUpdateJid(instanceId string, number string) erro
 }
 
 func (w *whatsmeowService) StartClient(cd *ClientData) {
+	unlock := w.lockLifecycle(cd.Instance.Id)
+	defer unlock()
+	w.startClient(cd)
+}
+
+func (w *whatsmeowService) startClient(cd *ClientData) {
 	ctx, cancel := context.WithCancel(context.Background())
-	run := &clientRun{ctx: ctx, cancel: cancel, stopped: make(chan struct{})}
+	run := &clientRun{ctx: ctx, cancel: cancel, stopped: make(chan struct{}), data: cd}
 	for {
 		previous, running := w.starts.LoadOrStore(cd.Instance.Id, run)
 		if !running {
@@ -354,6 +379,12 @@ func (w *whatsmeowService) StartClient(cd *ClientData) {
 		}
 		old := previous.(*clientRun)
 		if old.ctx.Err() == nil {
+			old.dataMu.Lock()
+			old.data = cd
+			if current := w.myClientPointer[cd.Instance.Id]; current != nil && (current.ctx == nil || current.ctx.Err() == nil) {
+				w.applyClientSettings(current, cd)
+			}
+			old.dataMu.Unlock()
 			cancel()
 			return
 		}
@@ -435,129 +466,145 @@ func (w *whatsmeowService) runClient(cd *ClientData, run *clientRun) {
 		}
 	}
 
-	if cd.Instance.OsName == "" {
-		cd.Instance.OsName = utils.WhatsAppGetUserOS()
-	}
-
-	// 🔒 FIX: Sempre criar logger, mesmo que WaDebug esteja vazio
-	// Usar "INFO" como nível mínimo para garantir que logs importantes apareçam
-	minLevel := w.config.WaDebug
-	if minLevel == "" {
-		minLevel = "INFO" // Nível mínimo para garantir que logs INFO apareçam
-	}
-	clientLog := waLog.Stdout("Client", minLevel, true)
-	if clientCtx.Err() != nil {
-		return
-	}
-	client := whatsmeow.NewClient(deviceStore, clientLog)
+	var client *whatsmeow.Client
+	var mycli *MyClient
+	var killChan chan bool
 	defer func() {
-		client.Disconnect()
-		client.RemoveEventHandlers()
+		cancelClient()
+		if client != nil {
+			client.Disconnect()
+			client.RemoveEventHandlers()
+		}
 	}()
-	client.BackgroundEventCtx = clientCtx
-	// A replacement owns a different channel; never consume its stop signal.
-	killChan := make(chan bool)
-	w.killChannel[cd.Instance.Id] = killChan
-	// The library's registration properties are global. Copy the payload and
-	// set the instance-specific name without mutating shared state.
-	osName := cd.Instance.OsName
-	client.GetClientPayload = func() *waWa6.ClientPayload {
-		return payloadWithDeviceOS(deviceStore.GetClientPayload(), osName)
-	}
-
-	w.clientPointer[cd.Instance.Id] = client
-
-	if cd.IsProxy {
-		var proxyConfig ProxyConfig
-		err := json.Unmarshal([]byte(cd.Instance.Proxy), &proxyConfig)
-		if err != nil {
-			w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] error unmarshalling proxy config", cd.Instance.Id)
-			return
+	published := func() bool {
+		run.dataMu.Lock()
+		defer run.dataMu.Unlock()
+		cd = run.data
+		if cd.Instance.OsName == "" {
+			cd.Instance.OsName = utils.WhatsAppGetUserOS()
 		}
 
-		proxyProtocol := proxyConfig.Protocol
-		proxyHost := proxyConfig.Host
-		proxyPort := proxyConfig.Port
-		proxyUsername := proxyConfig.Username
-		proxyPassword := proxyConfig.Password
-
-		if proxyConfig.Host == "" {
-			proxyHost = w.config.ProxyHost
+		// 🔒 FIX: Sempre criar logger, mesmo que WaDebug esteja vazio
+		// Usar "INFO" como nível mínimo para garantir que logs importantes apareçam
+		minLevel := w.config.WaDebug
+		if minLevel == "" {
+			minLevel = "INFO" // Nível mínimo para garantir que logs INFO apareçam
+		}
+		clientLog := waLog.Stdout("Client", minLevel, true)
+		if clientCtx.Err() != nil {
+			return false
+		}
+		client = whatsmeow.NewClient(deviceStore, clientLog)
+		client.BackgroundEventCtx = clientCtx
+		// A replacement owns a different channel; never consume its stop signal.
+		killChan = make(chan bool)
+		w.killChannel[cd.Instance.Id] = killChan
+		// The library's registration properties are global. Copy the payload and
+		// set the instance-specific name without mutating shared state.
+		osName := cd.Instance.OsName
+		client.GetClientPayload = func() *waWa6.ClientPayload {
+			return payloadWithDeviceOS(deviceStore.GetClientPayload(), osName)
 		}
 
-		if proxyConfig.Port == "" {
-			proxyPort = w.config.ProxyPort
-		}
+		w.clientPointer[cd.Instance.Id] = client
 
-		if proxyConfig.Protocol == "" {
-			proxyProtocol = w.config.ProxyProtocol
-		}
+		if cd.IsProxy {
+			var proxyConfig ProxyConfig
+			err := json.Unmarshal([]byte(cd.Instance.Proxy), &proxyConfig)
+			if err != nil {
+				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] error unmarshalling proxy config", cd.Instance.Id)
+				return false
+			}
 
-		if proxyConfig.Username == "" {
-			proxyUsername = w.config.ProxyUsername
-		}
+			proxyProtocol := proxyConfig.Protocol
+			proxyHost := proxyConfig.Host
+			proxyPort := proxyConfig.Port
+			proxyUsername := proxyConfig.Username
+			proxyPassword := proxyConfig.Password
 
-		if proxyConfig.Password == "" {
-			proxyPassword = w.config.ProxyPassword
-		}
+			if proxyConfig.Host == "" {
+				proxyHost = w.config.ProxyHost
+			}
 
-		proxyAddress, err := utils.BuildProxyAddress(proxyProtocol, proxyHost, proxyPort, proxyUsername, proxyPassword)
-		if err != nil {
-			w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy error, continuing without proxy: %v", cd.Instance.Id, err)
-		} else {
-			err = client.SetProxyAddress(proxyAddress)
+			if proxyConfig.Port == "" {
+				proxyPort = w.config.ProxyPort
+			}
+
+			if proxyConfig.Protocol == "" {
+				proxyProtocol = w.config.ProxyProtocol
+			}
+
+			if proxyConfig.Username == "" {
+				proxyUsername = w.config.ProxyUsername
+			}
+
+			if proxyConfig.Password == "" {
+				proxyPassword = w.config.ProxyPassword
+			}
+
+			proxyAddress, err := utils.BuildProxyAddress(proxyProtocol, proxyHost, proxyPort, proxyUsername, proxyPassword)
 			if err != nil {
 				w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy error, continuing without proxy: %v", cd.Instance.Id, err)
 			} else {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Proxy enabled (%s)", cd.Instance.Id, utils.NormalizeProxyProtocol(proxyProtocol, proxyPort))
+				err = client.SetProxyAddress(proxyAddress)
+				if err != nil {
+					w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy error, continuing without proxy: %v", cd.Instance.Id, err)
+				} else {
+					w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Proxy enabled (%s)", cd.Instance.Id, utils.NormalizeProxyProtocol(proxyProtocol, proxyPort))
+				}
 			}
 		}
+
+		client.EnableAutoReconnect = false
+		client.AutoTrustIdentity = true
+
+		mycli = &MyClient{
+			service:            w,
+			ctx:                clientCtx,
+			cancel:             cancelClient,
+			stopped:            stopped,
+			killSignal:         killChan,
+			Instance:           cd.Instance,
+			WAClient:           client,
+			eventHandlerID:     1,
+			userID:             cd.Instance.Id,
+			token:              cd.Instance.Token,
+			subscriptions:      cd.Subscriptions,
+			webhookUrl:         cd.Instance.Webhook,
+			rabbitmqEnable:     cd.Instance.RabbitmqEnable,
+			natsEnable:         cd.Instance.NatsEnable,
+			websocketEnable:    cd.Instance.WebSocketEnable,
+			instanceRepository: w.instanceRepository,
+			messageRepository:  w.messageRepository,
+			labelRepository:    w.labelRepository,
+			pollService:        w.pollService, // NOVO: Serviço de enquetes
+			userInfoCache:      w.userInfoCache,
+			clientPointer:      w.clientPointer,
+			myClientPointer:    w.myClientPointer,
+			killChannel:        w.killChannel,
+			config:             w.config,
+			historySyncID:      0,
+			rabbitmqProducer:   w.rabbitmqProducer,
+			webhookProducer:    w.webhookProducer,
+			websocketProducer:  w.websocketProducer,
+			mediaStorage:       w.mediaStorage,
+			processedMessages:  w.processedMessages,
+			natsProducer:       w.natsProducer,
+			loggerWrapper:      w.loggerWrapper,
+			qrcodeCount:        0,
+			passkeyCeremony:    w.passkeyCeremony,
+		}
+
+		mycli.eventHandlerID = mycli.WAClient.AddEventHandler(mycli.myEventHandler)
+
+		// Armazena o MyClient no map para permitir atualizações posteriores
+		w.myClientPointer[cd.Instance.Id] = mycli
+
+		return true
+	}()
+	if !published {
+		return
 	}
-
-	client.EnableAutoReconnect = false
-	client.AutoTrustIdentity = true
-
-	mycli := &MyClient{
-		service:            w,
-		ctx:                clientCtx,
-		cancel:             cancelClient,
-		stopped:            stopped,
-		killSignal:         killChan,
-		Instance:           cd.Instance,
-		WAClient:           client,
-		eventHandlerID:     1,
-		userID:             cd.Instance.Id,
-		token:              cd.Instance.Token,
-		subscriptions:      cd.Subscriptions,
-		webhookUrl:         cd.Instance.Webhook,
-		rabbitmqEnable:     cd.Instance.RabbitmqEnable,
-		natsEnable:         cd.Instance.NatsEnable,
-		websocketEnable:    cd.Instance.WebSocketEnable,
-		instanceRepository: w.instanceRepository,
-		messageRepository:  w.messageRepository,
-		labelRepository:    w.labelRepository,
-		pollService:        w.pollService, // NOVO: Serviço de enquetes
-		userInfoCache:      w.userInfoCache,
-		clientPointer:      w.clientPointer,
-		myClientPointer:    w.myClientPointer,
-		killChannel:        w.killChannel,
-		config:             w.config,
-		historySyncID:      0,
-		rabbitmqProducer:   w.rabbitmqProducer,
-		webhookProducer:    w.webhookProducer,
-		websocketProducer:  w.websocketProducer,
-		mediaStorage:       w.mediaStorage,
-		processedMessages:  w.processedMessages,
-		natsProducer:       w.natsProducer,
-		loggerWrapper:      w.loggerWrapper,
-		qrcodeCount:        0,
-		passkeyCeremony:    w.passkeyCeremony,
-	}
-
-	mycli.eventHandlerID = mycli.WAClient.AddEventHandler(mycli.myEventHandler)
-
-	// Armazena o MyClient no map para permitir atualizações posteriores
-	w.myClientPointer[cd.Instance.Id] = mycli
 
 	if client.Store.ID != nil {
 		w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Already logged in with JID: %s", cd.Instance.Id, client.Store.ID.String())
@@ -647,8 +694,10 @@ func (w *whatsmeowService) runClient(cd *ClientData, run *clientRun) {
 			client.Disconnect()
 			client.RemoveEventHandlers()
 
+			run.dataMu.Lock()
 			delete(w.clientPointer, cd.Instance.Id)
 			delete(w.myClientPointer, cd.Instance.Id)
+			run.dataMu.Unlock()
 
 			// Limpar cache de userInfo para esta instância
 			w.userInfoCache.Delete(cd.Instance.Token)
@@ -2425,10 +2474,16 @@ func (w *whatsmeowService) sendToQueueOrWebhook(instance *instance_model.Instanc
 }
 
 func (w *whatsmeowService) StartInstance(instanceId string) error {
+	unlock := w.lockLifecycle(instanceId)
+	defer unlock()
+	return w.startInstance(instanceId)
+}
+
+func (w *whatsmeowService) startInstance(instanceId string) error {
 	if !WAVersionReady() {
 		return ErrWAVersionNotReady
 	}
-	if current := w.myClientPointer[instanceId]; current != nil && current.ctx != nil && current.ctx.Err() == nil {
+	if current := w.runtimeClient(instanceId); current != nil && current.ctx != nil && current.ctx.Err() == nil {
 		return nil
 	}
 	instance, err := w.instanceRepository.GetInstanceByID(instanceId)
@@ -2512,7 +2567,7 @@ func (w *whatsmeowService) StartInstance(instanceId string) error {
 		}
 	}
 
-	w.StartClient(clientData)
+	w.startClient(clientData)
 
 	return nil
 }
@@ -2714,6 +2769,9 @@ func (w *whatsmeowService) SendToGlobalQueues(eventType string, payload []byte, 
 }
 
 func (w *whatsmeowService) UpdateInstanceSettings(instanceId string) error {
+	unlock := w.lockLifecycle(instanceId)
+	defer unlock()
+
 	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Updating instance settings in runtime", instanceId)
 
 	// Busca a instância atualizada do banco
@@ -2724,18 +2782,11 @@ func (w *whatsmeowService) UpdateInstanceSettings(instanceId string) error {
 	}
 
 	// Verifica se o MyClient existe
-	myClient, exists := w.myClientPointer[instanceId]
-	if !exists || myClient == nil || (myClient.ctx != nil && myClient.ctx.Err() != nil) {
+	myClient := w.runtimeClient(instanceId)
+	if myClient == nil || (myClient.ctx != nil && myClient.ctx.Err() != nil) {
 		w.loggerWrapper.GetLogger(instanceId).LogWarn("[%s] MyClient not found in runtime, instance may not be connected", instanceId)
 		return fmt.Errorf("instance %s not found in runtime", instanceId)
 	}
-
-	// Atualiza as configurações no MyClient em execução
-	myClient.Instance = instance
-	myClient.webhookUrl = instance.Webhook
-	myClient.rabbitmqEnable = instance.RabbitmqEnable
-	myClient.natsEnable = instance.NatsEnable
-	myClient.websocketEnable = instance.WebSocketEnable
 
 	// Atualiza as subscriptions se os eventos mudaram
 	eventArray := strings.Split(instance.Events, ",")
@@ -2755,7 +2806,20 @@ func (w *whatsmeowService) UpdateInstanceSettings(instanceId string) error {
 		}
 	}
 
-	myClient.subscriptions = subscribedEvents
+	w.applyClientSettings(myClient, &ClientData{Instance: instance, Subscriptions: subscribedEvents})
+
+	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Instance settings and cache updated in runtime successfully", instanceId)
+	return nil
+}
+
+func (w *whatsmeowService) applyClientSettings(myClient *MyClient, data *ClientData) {
+	instance := data.Instance
+	myClient.Instance = instance
+	myClient.webhookUrl = instance.Webhook
+	myClient.rabbitmqEnable = instance.RabbitmqEnable
+	myClient.natsEnable = instance.NatsEnable
+	myClient.websocketEnable = instance.WebSocketEnable
+	myClient.subscriptions = data.Subscriptions
 
 	// Atualiza o cache do userInfo com as novas configurações
 	v := Values{map[string]string{
@@ -2768,8 +2832,6 @@ func (w *whatsmeowService) UpdateInstanceSettings(instanceId string) error {
 	}}
 	w.userInfoCache.Set(instance.Token, v, cache.NoExpiration)
 
-	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Instance settings and cache updated in runtime successfully", instanceId)
-	return nil
 }
 
 func (w *whatsmeowService) UpdateInstanceAdvancedSettings(instanceId string) error {
@@ -2797,6 +2859,9 @@ func (w *whatsmeowService) UpdateInstanceAdvancedSettings(instanceId string) err
 }
 
 func (w *whatsmeowService) ClearInstanceCache(instanceId string, token string) error {
+	unlock := w.lockLifecycle(instanceId)
+	defer unlock()
+
 	w.loggerWrapper.GetLogger(instanceId).LogInfo("[%s] Clearing instance cache - Token: %s", instanceId, token)
 
 	// Limpar userInfoCache
