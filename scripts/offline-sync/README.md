@@ -148,3 +148,29 @@ Resultados recebem prefixo `before-socket-<run>` e não sobrescrevem a referênc
 anterior. Se não reproduzir em dez ciclos ou aparecer outro bloqueio, parar e
 consultar o Tuan novamente. `lab.py down` também remove o proxy quando a limpeza
 do ambiente for apropriada; não executar isso durante testes ou ativação.
+
+## Mídia e duração contínua
+
+```sh
+python3 scripts/offline-sync/media_traffic.py --label before
+python3 scripts/offline-sync/media_traffic.py --label after --duration-seconds 7200 --interval-seconds 300
+python3 -m unittest discover -s scripts/offline-sync -p 'test_*.py'
+```
+
+O roteiro envia PNG sintético, tom WAV de um segundo (convertido em Opus pela API)
+e texto nas duas direções. Confirma recebimento pelo hash do ID, tipo e FromMe=false;
+não salva payload, URL, chaves de mídia ou arquivo recebido. É verificação de entrega
+à API/webhook, sem inspeção manual de reprodução da mídia no telefone.
+
+A duração começa no início da execução e registra lotes periódicos e amostras de
+autenticação a cada dois segundos. Não induz quedas; perda de autenticação, entrega,
+panic ou erro de stream interrompe e preserva a sessão. Os experimentos de ciclos e
+mídia usam o mesmo lock local para impedir execução simultânea. Não trocar imagem
+nem iniciar novo pareamento durante a janela contínua.
+
+O contador de conclusão usa o log real `Event: OfflineSyncCompleted,`, emitido pelo
+handler explícito. Os dois primeiros relatórios históricos tinham contador incorreto
+e receberam aviso; não usar seus zeros para comparar conclusão de sincronização.
+A autorização do Tuan para prosseguir experimentalmente após não reproduzir está
+registrada no plano. Passar os mesmos testes em ambas versões não prova a causa
+nem a correção do congelamento de produção.

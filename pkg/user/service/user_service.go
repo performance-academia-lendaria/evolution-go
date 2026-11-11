@@ -24,9 +24,9 @@ type UserService interface {
 	GetContacts(instance *instance_model.Instance) ([]ContactInfo, error)
 	GetPrivacy(instance *instance_model.Instance) (types.PrivacySettings, error)
 	SetPrivacy(data *PrivacyStruct, instance *instance_model.Instance) (*types.PrivacySettings, error)
-	BlockContact(data *BlockStruct, instance *instance_model.Instance) (*types.Blocklist, error)
-	UnlockContact(data *BlockStruct, instance *instance_model.Instance) (*types.Blocklist, error)
-	GetBlockList(instance *instance_model.Instance) (*types.Blocklist, error)
+	BlockContact(data *BlockStruct, instance *instance_model.Instance) (*Blocklist, error)
+	UnlockContact(data *BlockStruct, instance *instance_model.Instance) (*Blocklist, error)
+	GetBlockList(instance *instance_model.Instance) (*Blocklist, error)
 	SetProfilePicture(data *SetProfilePictureStruct, instance *instance_model.Instance) (bool, error)
 	SetProfileName(data *SetProfileNameStruct, instance *instance_model.Instance) (bool, error)
 	SetProfileStatus(data *SetProfileStatusStruct, instance *instance_model.Instance) (bool, error)
@@ -433,7 +433,7 @@ func (u *userService) SetPrivacy(data *PrivacyStruct, instance *instance_model.I
 	return &privacy, nil
 }
 
-func (u *userService) BlockContact(data *BlockStruct, instance *instance_model.Instance) (*types.Blocklist, error) {
+func (u *userService) BlockContact(data *BlockStruct, instance *instance_model.Instance) (*Blocklist, error) {
 	client, err := u.ensureClientConnected(instance.Id)
 	if err != nil {
 		return nil, err
@@ -449,10 +449,10 @@ func (u *userService) BlockContact(data *BlockStruct, instance *instance_model.I
 		return nil, err
 	}
 
-	return resp, nil
+	return blocklistResponse(resp), nil
 }
 
-func (u *userService) UnlockContact(data *BlockStruct, instance *instance_model.Instance) (*types.Blocklist, error) {
+func (u *userService) UnlockContact(data *BlockStruct, instance *instance_model.Instance) (*Blocklist, error) {
 	client, err := u.ensureClientConnected(instance.Id)
 	if err != nil {
 		return nil, err
@@ -468,10 +468,10 @@ func (u *userService) UnlockContact(data *BlockStruct, instance *instance_model.
 		return nil, err
 	}
 
-	return resp, nil
+	return blocklistResponse(resp), nil
 }
 
-func (u *userService) GetBlockList(instance *instance_model.Instance) (*types.Blocklist, error) {
+func (u *userService) GetBlockList(instance *instance_model.Instance) (*Blocklist, error) {
 	client, err := u.ensureClientConnected(instance.Id)
 	if err != nil {
 		return nil, err
@@ -482,7 +482,7 @@ func (u *userService) GetBlockList(instance *instance_model.Instance) (*types.Bl
 		return nil, err
 	}
 
-	return resp, nil
+	return blocklistResponse(resp), nil
 }
 
 func (u *userService) SetProfilePicture(data *SetProfilePictureStruct, instance *instance_model.Instance) (bool, error) {

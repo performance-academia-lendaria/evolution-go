@@ -13,6 +13,7 @@ import (
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	instance_repository "github.com/evolution-foundation/evolution-go/pkg/instance/repository"
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
+	"github.com/patrickmn/go-cache"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/store"
@@ -244,5 +245,78 @@ func TestCanceledQRTimeoutCannotStopReplacement(t *testing.T) {
 	}
 	if len(replacementKill) != 0 {
 		t.Fatal("old QR timeout sent a stop signal to the replacement")
+	}
+}
+
+type logoutBarrierRepository struct {
+	instance_repository.InstanceRepository
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (r *logoutBarrierRepository) UpdateConnected(string, bool, string) error {
+	close(r.entered)
+	<-r.release
+	return nil
+}
+
+func TestCanceledLogoutHandlerDoesNotBlockRetirement(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	kill := make(chan bool)
+	repo := &logoutBarrierRepository{entered: make(chan struct{}), release: make(chan struct{})}
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	mycli := &MyClient{
+		ctx: ctx, killSignal: kill, killChannel: map[string]chan bool{"test": kill}, userID: "test",
+		Instance: &instance_model.Instance{Id: "test"}, instanceRepository: repo, config: cfg,
+		userInfoCache: cache.New(time.Minute, time.Minute), loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		service: &archiveCaptureService{calls: make(chan archiveWebhookCall, 2)},
+	}
+	client := whatsmeow.NewClient(&store.Device{}, nil)
+	client.AddEventHandler(mycli.myEventHandler)
+	dispatched := make(chan struct{})
+	go func() {
+		client.DangerousInternals().DispatchEvent(&events.LoggedOut{Reason: events.ConnectFailureLoggedOut})
+		close(dispatched)
+	}()
+	<-repo.entered
+	cancel() // The lifecycle worker exits before the in-flight DB operation returns.
+	retired := make(chan struct{})
+	go func() { client.RemoveEventHandlers(); close(retired) }()
+	close(repo.release)
+	select {
+	case <-retired:
+	case <-time.After(time.Second):
+		// Release the old blocking send so the red test does not leak goroutines.
+		select {
+		case <-kill:
+		case <-time.After(time.Second):
+		}
+		<-dispatched
+		<-retired
+		t.Fatal("canceled logout handler blocked event-handler removal")
+	}
+	<-dispatched
+}
+
+func TestStartInstancePreservesActiveWorkerChannel(t *testing.T) {
+	readyForReconnectTest(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	kill := make(chan bool)
+	cfg := &config.Config{LogDirectory: t.TempDir()}
+	w := &whatsmeowService{
+		config: cfg, loggerWrapper: logger_wrapper.NewLoggerManager(cfg),
+		userInfoCache:   cache.New(time.Minute, time.Minute),
+		killChannel:     map[string]chan bool{"test": kill},
+		myClientPointer: map[string]*MyClient{"test": {ctx: ctx, killSignal: kill}},
+		instanceRepository: &reconnectTestRepository{get: func(string) (*instance_model.Instance, error) {
+			// Invalid proxy prevents the old code from launching any real client.
+			return &instance_model.Instance{Id: "test", Proxy: "{"}, nil
+		}},
+	}
+	_ = w.StartInstance("test")
+	if w.killChannel["test"] != kill {
+		t.Fatal("redundant start replaced the active worker's published stop channel")
 	}
 }

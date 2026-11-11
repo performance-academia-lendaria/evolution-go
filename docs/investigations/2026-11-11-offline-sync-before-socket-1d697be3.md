@@ -1,5 +1,9 @@
 # Local WhatsApp reconnect experiment
 
+> Evidence correction: the completion log counter used by this historical run was invalid.
+> Ignore the Completed column and conclusions about missing sync completion. Delivery and
+> forced-disconnection measurements remain valid. A corrected reference run is required.
+
 Status: **not_reproduced**
 
 - Run: `1d697be3`; label: `before`.

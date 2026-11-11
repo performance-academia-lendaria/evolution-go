@@ -261,8 +261,6 @@ func (i instances) Connect(data *ConnectStruct, instance *instance_model.Instanc
 	if !isInstanceRunning {
 		i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Starting new client instance", instance.Id)
 
-		i.killChannel[instance.Id] = make(chan bool)
-
 		clientData := &whatsmeow_service.ClientData{
 			Instance:      instance,
 			Subscriptions: subscribedEvents,
@@ -718,8 +716,6 @@ func (i instances) ForceReconnect(instanceId string, number string) error {
 	}
 
 	subscribedEvents := strings.Split(instance.Events, ",")
-
-	i.killChannel[instance.Id] = make(chan bool)
 
 	clientData := &whatsmeow_service.ClientData{
 		Instance:      instance,

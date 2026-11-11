@@ -208,12 +208,12 @@ incluindo duração mínima de duas horas, mídia, imagem local e revisão obrig
 
 ## Fase 3 — Validação antes e depois
 
-- [ ] Formatar o código Go conforme `gofmt`/`make fmt` e conferir o diff resultante.
-- [ ] `go build ./...` limpo.
-- [ ] `go vet ./...` limpo.
-- [ ] `go test ./...` limpo, inclusive testes de versão/handshake existentes.
-- [ ] Registrar para cada regressão o comando e os resultados vermelho/verde.
-- [ ] Se houver mudança concorrente, rodar teste com detector de race apropriado.
+- [x] Formatar o código Go conforme `gofmt`/`make fmt` e conferir o diff resultante.
+- [x] `go build ./...` limpo.
+- [x] `go vet ./...` limpo.
+- [x] `go test ./...` limpo, inclusive testes de versão/handshake existentes.
+- [x] Registrar para cada regressão o comando e os resultados vermelho/verde.
+- [x] Se houver mudança concorrente, rodar teste com detector de race apropriado.
 - [ ] Repetir o roteiro com o mesmo número exclusivo, número de ciclos, tempos,
   remetente, receptor e critérios da referência; registrar diferenças inevitáveis.
 - [ ] Comparar conclusão de sincronização por reconexão, mensagens únicas recebidas
@@ -278,3 +278,21 @@ horário, ação, evidência, resultado, decisões, arquivos alterados e próxim
 Antes de encerrar ou interromper, registrar recursos locais ainda ativos,
 processos em execução, arquivos sensíveis locais somente pelo caminho, bloqueios
 e comando seguro de retomada/limpeza. Nunca depender apenas do histórico do chat.
+
+## Roteiro complementar — mídia e duração (planejado antes da execução)
+
+- Fixtures sintéticas geradas localmente: PNG de cor sólida e WAV de um segundo
+  com tom; áudio é convertido pelo caminho normal da Evolution/ffmpeg local.
+- Enviar texto, imagem e áudio nas duas direções somente entre os dois números de
+  teste. Confirmar entrega por hash do ID retornado e evento Message recebido
+  (IsFromMe=false), com tipo correto. Não salvar URL de mídia, chaves ou payload.
+- Fazer prova curta na referência durante a construção da candidata. Depois da
+  comparação de reconexões, manter candidata por ≥7200 segundos, lote a cada
+  300 segundos, com os três tipos nos dois sentidos e amostragem de autenticação
+  a cada 2 segundos. Nenhuma queda induzida durante esse intervalo contínuo.
+- Checkpoint após cada envio/entrega/lote; relatório sanitizado em docs e JSON
+  restrito/ignorado. Interrupção, perda de autenticação ou entrega expirada para
+  execução e preserva sessão, sem recuperar ou contornar automaticamente.
+- QR novo na candidata precisa de leitura manual adicional do Tuan; sessões salvas
+  não provam o novo pareamento. Preparar instância local separada sem tocar nas duas
+  sessões usadas pela comparação, e solicitar leitura quando QR estiver disponível.

@@ -560,7 +560,7 @@ também chegaram; não estão somadas aos 30 marcadores por execução.
 | Licença local | **Ativa — ativação pelo Tuan, conferida às 14:43 BRT** | Não executado |
 | QR/pareamento dos dois números de teste | Concluído; ambos autenticados após preparação | Não executado |
 | Ciclos confirmados de reconexão | **10/10 por API + 10/10 por socket**; detalhes nas tabelas acima | Não executado |
-| Reconexões com `OfflineSyncCompleted` | **0/20**; Preview em 20/20 | Não executado |
+| Reconexões com `OfflineSyncCompleted` | **Medição anterior inválida — contador corrigido e referência em repetição** | Não executado |
 | Mensagens antes/durante/depois recebidas no webhook | **30/30 por método (60/60)**, além das provas iniciais | Não executado |
 | Mensagens de saída recebidas no remetente | **10/10 por método (20/20)** | Não executado |
 | Reinícios por Disconnected | 0 no método API; **10 induzidos** no método socket | Não executado |
@@ -605,3 +605,84 @@ eventual PR deverão distinguir validação local de confirmação da causa de p
 - A revisão obrigatória usará a skill tm-codex-review-loop já lida, com modelo
   gpt-6.1-sol e esforço high explicitamente escolhidos pelo Tuan. Nenhuma nova
   escolha/autoridade de deploy é inferida.
+
+## Fase 3 — prova curta de mídia da referência (17:32 BRT)
+
+- Roteiro complementar criado: scripts/offline-sync/media_traffic.py.
+- Comando: python3 scripts/offline-sync/media_traffic.py --label before.
+- Execução media-before-19d178f4, 8,359 segundos, código 0: texto 2/2, imagem 2/2,
+  áudio 2/2 entregues nas duas direções; confirma hash do ID, FromMe=false e tipo.
+  Sem mídia real, download remoto de fixture ou conteúdo pessoal.
+- Relatório: [mídia antes](2026-11-11-offline-sync-media-before-19d178f4.md).
+  Isto é prova curta de envio/recebimento, não teste de duração.
+- Build da candidata está em execução (sessão 17955), log restrito local
+  build/offline-sync-lab/candidate-build.log; fonte Git cbe91dc, linux/amd64,
+  tag local 0.7.2-0.1.0-whatsmeow-c88388f-candidate. Não houve push.
+- Revisão Codex rodada 1 executa em snapshot limpo cbe91dc, sessão 35472,
+  relatório .code-review-log/round-1.txt, decisões em fix-whatsmeow-offline-sync.md.
+  Mudanças posteriores no roteiro deverão entrar na próxima rodada. Não trocar
+  branch do snapshot enquanto o processo executar.
+
+## Revisão rodada 1 e primeira conexão da candidata (17:36 BRT)
+
+- Codex encerrou com 2 P1 e 2 P2, todos aceitos; decisões no log obrigatório.
+  Dois hangs de lifecycle foram introduzidos pelo patch atual (LoggedOut bloqueante
+  após cancelamento; StartInstance substitui canal mesmo com socket ativo).
+  Adaptar também JSON de blocklist, que mudou na biblioteca.
+- **Correção de evidência:** contador Completed do roteiro busca log Unhandled,
+  mas o handler trata esse evento e emite Event: OfflineSyncCompleted. O 0/20
+  anterior é inválido como medição de sincronização. Entregas/quedas continuam
+  válidas. Logs do antigo container já não existem após troca local; não reconstruir
+  resultado por inferência. Corrigir contador com regressão e repetir referência.
+- Candidata linux/amd64 construída, ID
+  sha256:669d2c58683bccf477228491b1d5ce5b0a0f27ceb1bd91c5b446cc12b9580cc8.
+  Apenas API local trocada; bancos temporários copiados internamente para
+  offline_sync_auth_before_c88388f e offline_sync_instances_before_c88388f.
+- Licença ativa; remetente autenticou. Receptor não iniciou: duas chamadas
+  sqlstore.New concorrentes tentaram migrar v14->v15; uma falhou por coluna
+  companion_meta_nonce já existente. Sem logout, sem QR novo e sem bypass.
+  Fluxo de migração precisa ser serializado antes de repetir conexão.
+- Não iniciar ciclos nesta candidata até corrigir achados/migração. Próximo passo:
+  testes de regressão vermelhos/verdes, build revisado, referência recontada e
+  comparação seguida do teste contínuo. SynchronousAck/UnifiedSessionInterval ainda
+  nos defaults; nenhum motivo observado para alterá-los.
+- Produção consultada apenas via docker service inspect --format da imagem dos
+  dois serviços. Usuário SSH não tem docker.sock; leitura formatada por sudo -n
+  funcionou. Ambos usam tag 0.7.2-0.1.0 com digest
+  sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
+  Nenhum log/ambiente/segredo remoto lido, nenhum temporário remoto criado.
+
+## Correções da rodada 1 — regressões verificadas (17:42 BRT)
+
+- LoggedOut: teste com evento real despachado pela SDK, DB pausado e contexto
+  cancelado falhou antes (remoção de handlers bloqueada); passou após sinal de
+  parada específico da geração e sensível a cancelamento.
+- StartInstance: teste falhou antes porque chamada redundante substituía canal do
+  worker; passou com guarda do worker ativo. Criação do canal movida para início
+  efetivo de StartClient; removida dos chamadores. starts.LoadOrStore impede dois
+  workers simultâneos do mesmo ID. Exige revisão da publicação e do encerramento.
+- Blocklist: teste JSON falhou com Items/AddressingMode sem JIDs; passou com adapter
+  do contrato HTTP DHash/JIDs, preferindo PN conhecido e usando LID como fallback.
+- Contador: fixture do log real falhou com 0 em vez de 1; passou após buscar
+  Event: OfflineSyncCompleted. Receptor também reconhece o tipo explicitamente.
+- Migração concorrente: refatoração de inicialização sem cache reproduziu 20
+  inicializações em 20 chamadas; teste passou com inicialização compartilhada e
+  serializada. Falha transitória não fica memorizada; novo teste valida retry.
+- Referência foi retomada na imagem original contra DB temporário migrado, sem
+  restaurar schema: licença e ambos devices autenticaram. É evidência de rollback
+  de leitura/conexão local; não é restauração completa de produção.
+- Repetição da referência API em andamento: before-7188d36c, sessão 64874,
+  relatório em docs. Primeiro ciclo agora contou Completed=1, mostrando por que os
+  antigos zeros não podiam ser usados para concluir falta de sincronização.
+
+## Referência com contador corrigido — API (17:43 BRT)
+
+- before-7188d36c encerrou código 0: dez ciclos, 10/10 Completed e Preview,
+  entrada 30/30, saída 10/10; zero panics/stream errors. Incidente não reproduzido.
+- Mesmo roteiro/janelas de 180s, imagem original, dois devices preservados. Não
+  houve espera artificial pelo timeout porque a conclusão agora é detectada.
+- Próxima execução de referência: socket, 10 quedas de 10s no receptor apenas,
+  log build/offline-sync-lab/reference-socket-corrected.log. Não mudar imagem até
+  encerramento. Continuação de candidata já autorizada pelo pedido do Tuan.
+- Após correções da rodada 1: build/vet/suíte completos e race dos pacotes alterados
+  passaram. Novas regressões vermelhas/verdes registradas acima e no review log.

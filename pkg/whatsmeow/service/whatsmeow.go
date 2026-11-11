@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/image/webp"
@@ -68,6 +69,8 @@ type WhatsmeowService interface {
 
 type whatsmeowService struct {
 	reconnects         singleflight.Group
+	starts             sync.Map
+	deviceStore        deviceStoreInitializer
 	instanceRepository instance_repository.InstanceRepository
 	authDB             *sql.DB
 	messageRepository  message_repository.MessageRepository
@@ -311,6 +314,16 @@ func (w *whatsmeowService) ForceUpdateJid(instanceId string, number string) erro
 }
 
 func (w *whatsmeowService) StartClient(cd *ClientData) {
+	if _, running := w.starts.LoadOrStore(cd.Instance.Id, struct{}{}); running {
+		return
+	}
+	var stopped chan struct{}
+	defer func() {
+		w.starts.Delete(cd.Instance.Id)
+		if stopped != nil {
+			close(stopped)
+		}
+	}()
 
 	w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("Starting websocket connection to Whatsapp for user '%s'", cd.Instance.Id)
 
@@ -329,24 +342,24 @@ func (w *whatsmeowService) StartClient(cd *ClientData) {
 		return
 	}
 
-	var container *sqlstore.Container
-
-	if w.config.WaDebug != "" {
-		dbLog := waLog.Stdout("Database", w.config.WaDebug, true)
-		if w.config.PostgresAuthDB != "" {
-			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, dbLog)
+	container, err := w.deviceStore.get(func() (*sqlstore.Container, error) {
+		if w.config.WaDebug != "" {
+			dbLog := waLog.Stdout("Database", w.config.WaDebug, true)
+			if w.config.PostgresAuthDB != "" {
+				return sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, dbLog)
+			} else {
+				dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
+				return sqlstore.New(context.Background(), "sqlite", dsn, dbLog)
+			}
 		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
-			container, err = sqlstore.New(context.Background(), "sqlite", dsn, dbLog)
+			if w.config.PostgresAuthDB != "" {
+				return sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, nil)
+			} else {
+				dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
+				return sqlstore.New(context.Background(), "sqlite", dsn, nil)
+			}
 		}
-	} else {
-		if w.config.PostgresAuthDB != "" {
-			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, nil)
-		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
-			container, err = sqlstore.New(context.Background(), "sqlite", dsn, nil)
-		}
-	}
+	})
 
 	if err != nil {
 		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to create container: %v", cd.Instance.Id, err)
@@ -391,11 +404,11 @@ func (w *whatsmeowService) StartClient(cd *ClientData) {
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 	clientCtx, cancelClient := context.WithCancel(context.Background())
 	client.BackgroundEventCtx = clientCtx
-	stopped := make(chan struct{})
-	defer close(stopped)
+	stopped = make(chan struct{})
 	defer cancelClient()
 	// A replacement owns a different channel; never consume its stop signal.
-	killChan := w.killChannel[cd.Instance.Id]
+	killChan := make(chan bool)
+	w.killChannel[cd.Instance.Id] = killChan
 	// The library's registration properties are global. Copy the payload and
 	// set the instance-specific name without mutating shared state.
 	osName := cd.Instance.OsName
@@ -865,10 +878,14 @@ func (mycli *MyClient) teardownQR(reason string, forceLogout bool) {
 	// maps (it is the single writer for this instance). Blocking send mirrors
 	// the original timeout branch so the signal is never dropped.
 	mycli.loggerWrapper.GetLogger(instanceID).LogWarn("[%s] QR timeout — signaling kill channel", instanceID)
+	mycli.signalStop()
+}
+
+func (mycli *MyClient) signalStop() {
 	killChan := mycli.killSignal
 	if killChan == nil && mycli.ctx == nil {
 		// Legacy fixtures without a generation context still use the map.
-		killChan = mycli.killChannel[instanceID]
+		killChan = mycli.killChannel[mycli.userID]
 	}
 	if killChan != nil {
 		select {
@@ -1916,7 +1933,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		}
 
 		// Agora mata o canal DEPOIS de enviar o evento
-		mycli.killChannel[mycli.userID] <- true
+		mycli.signalStop()
 	case *events.ChatPresence:
 		doWebhook = true
 		postMap["event"] = "ChatPresence"
@@ -2349,6 +2366,9 @@ func (w *whatsmeowService) StartInstance(instanceId string) error {
 	if !WAVersionReady() {
 		return ErrWAVersionNotReady
 	}
+	if current := w.myClientPointer[instanceId]; current != nil && current.ctx != nil && current.ctx.Err() == nil {
+		return nil
+	}
 	instance, err := w.instanceRepository.GetInstanceByID(instanceId)
 	if err != nil {
 		return err
@@ -2409,8 +2429,6 @@ func (w *whatsmeowService) StartInstance(instanceId string) error {
 
 		}
 	}
-
-	w.killChannel[instance.Id] = make(chan bool)
 
 	clientData := &ClientData{
 		Instance:      instance,

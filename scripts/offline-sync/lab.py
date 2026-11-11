@@ -3,6 +3,8 @@
 
 import argparse
 import base64
+from contextlib import contextmanager
+import fcntl
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
@@ -30,6 +32,17 @@ DOCKER = []
 
 class LabError(Exception):
     pass
+
+
+@contextmanager
+def exclusive_experiment():
+    """Never let a fault test invalidate a simultaneous continuous traffic test."""
+    with (STATE / "experiment.lock").open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise LabError("STOP: another lab experiment is active.") from None
+        yield
 
 
 def docker(*args, required=True, stdin=None):

@@ -93,7 +93,7 @@ def log_counts(target, start):
             continue
         for key, marker in (("connected", "events.Connected to Whatsapp"),
                             ("offline_preview", "Unhandled event *events.OfflineSyncPreview"),
-                            ("offline_completed", "Unhandled event *events.OfflineSyncCompleted"),
+                            ("offline_completed", "Event: OfflineSyncCompleted,"),
                             ("automatic_restart", "Disconnected detected, restarting instance")):
             if marker in line:
                 counts[key] += 1
@@ -265,7 +265,9 @@ def run(args):
             save()
             print(json.dumps(cycle), flush=True)
         report["status"] = "not_reproduced"
-        report["stop_reason"] = "Required cycles completed without reproducing the full incident. Ask Tuan before any dependency update."
+        report["stop_reason"] = ("Required cycles completed without reproducing the full incident. Ask Tuan before any dependency update."
+                                 if args.label == "before" else
+                                 "Required candidate cycles completed; this establishes local compatibility, not the production incident's cause.")
     except (lab.LabError, OSError, ValueError, KeyboardInterrupt) as error:
         report["status"] = "stopped"
         report["stop_reason"] = str(error) if isinstance(error, lab.LabError) else "Experiment interrupted or local operation failed; raw details withheld."
@@ -291,7 +293,8 @@ def main():
     if not 5 <= args.down_seconds <= 15:
         parser.error("Use a 5..15 second socket outage below the independent 20 second restore.")
     lab.local_docker()
-    run(args)
+    with lab.exclusive_experiment():
+        run(args)
 
 
 if __name__ == "__main__":

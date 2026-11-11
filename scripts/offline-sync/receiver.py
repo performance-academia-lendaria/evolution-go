@@ -10,7 +10,7 @@ import re
 import time
 
 
-EVENTS = {"Connected", "Disconnected", "Message", "Receipt", "SendMessage", "PairSuccess"}
+EVENTS = {"Connected", "Disconnected", "Message", "Receipt", "SendMessage", "PairSuccess", "OfflineSyncCompleted"}
 MARKER = re.compile(r"EVOSYNC-[a-f0-9]{8}-C[0-9]{2}-(before|during|after|outbound)")
 
 
