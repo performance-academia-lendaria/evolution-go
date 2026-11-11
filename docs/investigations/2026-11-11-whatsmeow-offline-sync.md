@@ -573,22 +573,27 @@ chegaram; não estão somadas aos 30 marcadores de cada execução. Testaram a i
 antiga contra schema temporário já atualizado pela primeira candidata, sem rewinding
 chaves/sessões. Isso demonstra compatibilidade local de leitura/conexão do rollback.
 
-## Comparação antes e depois (atualizar após execução da candidata)
+## Comparação antes e depois — estado atual
 
-| Medida | Referência / imagem atual | Candidata |
+| Medida | Referência válida | Candidata final f072697 |
 |---|---|---|
-| Identidade | main 8d77799; b572; imagem local/prod digest registrado | c883 + patches de lifecycle em validação |
-| QR/pareamento dos números | Dois pareados | Ambos retomados; QR adicional novo autenticou e recebeu prova na SDK nova |
-| Ciclos confirmados de reconexão | 10/10 API + 10/10 socket | Não executado |
-| OfflineSyncCompleted | 20/20 nas repetições corretas | Não executado |
-| Mensagens antes/durante/depois no webhook | 60/60 | Não executado |
-| Saída recebida no outro número | 20/20 | Não executado |
-| Reinícios por Disconnected | 0 API; 10 socket induzidos | Não executado |
-| Panics / erros de stream | 0 / 0 | Não executado |
-| Texto/imagem/áudio bidirecional | Prova curta 6/6 | Somente prova textual do QR adicional; lote completo pendente |
-| Tráfego periódico ≥2h | Não executado na referência | Não executado |
-| Build / vet / suíte / race | Testes existentes preservados | Passaram após rodada2; candidata final pendente revisão/ciclos |
-| Revisão Codex | Não se aplica | R1: 2P1+2P2; R2: 1P1+2P2; R3 iniciada |
+| Biblioteca | b572e5bcb92b | c88388f983b4 |
+| Ciclos por API / por socket | 10/10 + 10/10 | 10/10 + 10/10 |
+| OfflineSyncCompleted | 20/20 | 20/20 |
+| Entrada antes/durante/depois | 60/60 | 60/60 |
+| Saída recebida no outro número | 20/20 | 20/20 |
+| Reinícios induzidos | 0 API; 10 socket | 0 API; 10 socket |
+| Panics / erros de stream nos ciclos | 0 / 0 | 0 / 0 |
+| Texto/imagem/áudio nas duas vias | 6/6 prova curta | 6/6 prova curta |
+| QR da SDK nova | Não se aplica | Novo companion autenticou e recebeu prova na SDK c883 |
+| Duração de pelo menos duas horas | Não executada na referência | Em andamento, e282b2eb |
+| Build / vet / suíte / race | Testes existentes preservados | Passaram; pacote completo repetido fora do sandbox do revisor |
+| Revisão Codex | Não se aplica | Limpa na 7ª rodada; 13 achados corrigidos |
+
+Referência: 7188d36c/API e a70c1164/socket. Candidata final: 07bec535/API,
+b8739baa/socket, 7c526e36/mídia. Imagem local de código f072697:
+sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
+O [relatório consolidado](2026-11-11-whatsmeow-validation.md) reúne os detalhes.
 
 ## Conclusão causal atual
 
@@ -960,3 +965,21 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
 - Relatório consolidado com comparação final de20ciclos preenchido; duração continua
   pendente. PRbody rascunhado em .code-review-log/pr-body-draft.md, com marcadores
   de duração pendentes. Não publicar PR com esses marcadores nem antes do teste.
+
+## Recibos durante a duração (19:38 BRT)
+
+- Metadados do receptor confirmaram eventos Receipt desde o início da janela:
+  20 no receptor e 15 no remetente nesta amostra. São contagens de eventos, não
+  garantia de exatamente um recibo por mensagem. Nenhum ID/telefone/conteúdo foi
+  exposto. Estado seguro em soak-receipt-check.json, ignorado.
+- Essa observação complementa as entregas correlacionadas por ID/tipo. A duração
+  continua em andamento e ainda não foi considerada aprovada.
+
+## Duração — 30 minutos (19:46 BRT)
+
+- Sete lotes concluídos, 42/42 entregas, ambos clientes autenticados.
+- Desde o início: zero reconexões, panics e erros de stream nos logs locais.
+- A comparação válida de ciclos, mídia curta e revisão está concluída; a execução
+  longa continua na mesma imagem. Não antecipar aprovação do período de duas horas.
+- Permissão de push no fork confirmada por metadados do GitHub; branch remota ainda
+  não existe. Nenhum push ou PR executado. Main remoto continua na base 8d77799.
