@@ -1,9 +1,14 @@
 # Evolution GO - Changelog
 
-## 0.7.2-0.1.1 — Unreleased
+## 0.7.2-0.1.1 — 2026-11-12
 
 Compatible fixes on the official Evolution Go 0.7.2 base (tag `0.7.2`,
 commit `9337afc47e10b86cc896a6f432240e40fee95dd1`).
+
+Published image: `tuanmedeiros/evolution-go:0.7.2-0.1.1@sha256:57b22a4245695c10772915d3ceeef60a6eec06275bdf63ceec539deaf27a815c`.
+Source/tag commit: `11bb6e4514e0a40b9b0445941e1164acef29f830`.
+[Release notes and artifacts](https://github.com/performance-academia-lendaria/evolution-go/releases/tag/0.7.2-0.1.1);
+[rollback runbook](docs/releases/0.7.2-0.1.1.md). No production deployment.
 
 ### Fixed
 
@@ -386,4 +391,3 @@ To contribute to the project:
 ---
 
 *Last updated: October 2025*
-

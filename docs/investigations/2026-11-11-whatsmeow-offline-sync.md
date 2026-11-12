@@ -3,7 +3,7 @@
 ## Ponto de retomada
 
 Atualizado em 2026-11-12, 01:31 BRT / 04:31 UTC.
-**Nova autorização: seguir até versão/release, imagem publicada, digest e rollback prontos. Sem deploy.**
+**Passos1–4 concluídos: versão0.7.2-0.1.1 publicada, digest verificado e rollback pronto. Sem deploy.**
 
 Plano ativo: `docs/plans/release-0.7.2-0.1.1.md`. A parada anterior permanece no histórico; foi substituída pelo pedido explícito do Tuan para os passos1–4.
 
@@ -1228,3 +1228,14 @@ Duração d147ec0f — checkpoint: {"status": "pass", "minutes": 120.1, "batches
 - Nenhum pushorigin, merge, publicação de imagem, deploy ou escrita em produção.
  Tráfego encerrado, ambos os números autenticados, PG/licença/pareamentos preservados.
 - PARADA conforme fase5. Próximas ações exigem solicitações explícitas individuais.
+
+Release0.7.2-0.1.1: PR #2 merged11bb6e4, exactimage4e8d5a8...validated media6/6
+and API10/TCP10 Completed20/20,60in/20out. Two identical pushes timed out at
+registry-1.docker.io before layers. publish_blocked, no new digest/tag/release.
+Plan/resume docs/plans/release-0.7.2-0.1.1.md and ignored build/release-0.7.2-0.1.1.
+Ask Tuan before a host-uploader workaround; no deploy, Docker restart or credential changes.
+
+Release publicada: https://github.com/performance-academia-lendaria/evolution-go/releases/tag/0.7.2-0.1.1
+Imagem: tuanmedeiros/evolution-go@sha256:57b22a4245695c10772915d3ceeef60a6eec06275bdf63ceec539deaf27a815c
+Tag/source 11bb6e4514e0a40b9b0445941e1164acef29f830; pull e assets verificados. Sem reautenticação, restartDocker ou deploy.
+Runbook docs/releases/0.7.2-0.1.1.md; atualizar somente registros finais e parar.
