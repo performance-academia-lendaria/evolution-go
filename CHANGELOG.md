@@ -35,7 +35,14 @@ The production receive-freeze cause remains unconfirmed. Existing fork handshake
 controls and default ack/unified-session options are preserved. Publication of
 this version does not authorize or trigger production deployment.
 
-## 0.7.2-0.1.0 — Candidata, sem release Git
+## 0.7.2-0.1.0 — 2026-11-03
+
+Original Docker image published on 2026-11-03. Its
+[historical GitHub release](https://github.com/performance-academia-lendaria/evolution-go/releases/tag/0.7.2-0.1.0)
+was registered retrospectively on 2026-11-12, referencing original image source
+`3994d1027d957d19bb92b105069061b4123300cc`. The existing image and digest
+`sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68`
+were preserved; no rebuild or deployment accompanied this registration.
 
 Primeira versão própria da Academia Lendária, baseada no Evolution Go 0.7.2.
 

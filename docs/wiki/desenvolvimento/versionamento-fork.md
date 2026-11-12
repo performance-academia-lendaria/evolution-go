@@ -51,4 +51,15 @@ O destino escolhido para as imagens do fork é o Docker Hub `tuanmedeiros/evolut
 
 A imagem `0.7.2-0.1.0` foi publicada antes do merge do PR, a partir do commit `3994d1027d957d19bb92b105069061b4123300cc`. Seu digest é `sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68`. A versão já está em produção; não reconstrua nem substitua essa tag para alinhar o histórico. A integração posterior do PR preserva o commit de origem e documenta essa exceção ao fluxo acima. Alterações futuras devem receber uma nova versão.
 
+### Registro histórico da primeira release GitHub
+
+A release [0.7.2-0.1.0](https://github.com/performance-academia-lendaria/evolution-go/releases/tag/0.7.2-0.1.0)
+foi registrada retrospectivamente em 2026-11-12 para a imagem originalmente
+publicada em 2026-11-03. Uma tag leve aponta ao commit original `3994d10`; as
+datas do commit e o artefato publicado permaneceram intactos. A data de publicação
+da GitHub release registra o dia do cadastro histórico, conforme explicado nas notas.
+A ordenação pública foi conferida: `0.7.2-0.1.1` aparece acima de `0.7.2-0.1.0`.
+Essa exceção de reconstrução de histórico não modifica a orientação para releases
+novas nem autoriza reconstruir/substituir imagens ou mover tags existentes.
+
 Referências: [Semantic Versioning 2.0.0](https://semver.org/lang/pt-BR/) e [referência de tags de imagem Docker](https://docs.docker.com/reference/cli/docker/image/tag/).
