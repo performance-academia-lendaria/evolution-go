@@ -109,6 +109,7 @@ branch foi trocada enquanto a revisão correspondente estava em execução.
 | 8 | Limpa | Snapshot `86eb808`, incluindo medição de pools e regressão sequencial |
 | 9 | 1 P2 | Corrigido: webhook atrasado poderia duplicar contagem de queda |
 | 10 | 1 P2 | Corrigido: alinhar observação e contadores no mesmo corte final |
+| 11 | Limpa | Snapshot `46fa181`, roteiro de recuperação e corte final |
 
 Foram corrigidos 15 achados: 3 P1 e 12 P2 (o último no novo roteiro de duração). O sandbox do revisor restringiu listeners
 locais na execução completa do pacote. No Mac, `go test ./pkg/whatsmeow/service -count=1`
@@ -116,7 +117,9 @@ passou após a revisão, além da suíte completa, build, vet e race já verdes 
 código. O registro exigido permanece em `.code-review-log/fix-whatsmeow-offline-sync.md`,
 local e ignorado pelo Git conforme a skill.
 
-A oitava rodada revisou a extensão solicitada de pools sem novos achados. O teste
+A oitava rodada revisou a extensão solicitada de pools sem novos achados. A
+11ª encerrou limpa o novo modo de duração após corrigir os achadosR9/R10 com
+regressões;14testes Python e a prova real do finalizador5b135557 passaram. O teste
 sequencial de store foi verificado vermelho/verde e o pacote completo passou no Mac.
 O aplicativo da imagem candidata continua sendo `f072697`; a extensão adiciona
 testes e medição, sem nova mudança de runtime.

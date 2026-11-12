@@ -6,8 +6,8 @@
 20reconexões/sync/entregas por imagem; REDexit2/GREENexit0 no teste de estabilidade.
 Código do aplicativo continua f072697/4dc9496; regressão sequencial e roteiro revistos
 pelo Codex emR8limpa/86eb808. Evidência detalhada em2026-11-11-whatsmeow-auth-pools.md.
-R9 trouxe1P2 no medidor de duração, corrigido RED/GREEN; R10 em execução no snapshot
-098d8bd.13testes Python passam. Preflight final4a5f41a2:1queda induzida, recuperação
+R9/R10 trouxeram1P2 cada no medidor, corrigidos RED/GREEN; R11 LIMPA
+no snapshot46fa181.14testes Python passam. Smoke finalizador5b135557 passou6/6. Preflight final4a5f41a2:1queda induzida, recuperação
 com sync/prova4.573s,6/6mensagens,0panics/streams. Não contar como queda natural.
 **Nova decisão do Tuan:** repetir2h, contando quedas, aceitas somente com reconexão,
 OfflineSyncCompleted e entrega em até60s. Preparar/documentar roteiro e regressões,
@@ -28,7 +28,7 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
 - **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; R6 1P2;
   R7 LIMPA em f072697; R8 LIMPA em86eb808 com roteiro de pools e teste sequencial.
-  R9 1P2 corrigido; R10 em098d8bd rodando.14achados corrigidos (3P1/11P2),
+  R9/R10 1P2 cada corrigidos; R11 LIMPA em46fa181.15achados corrigidos (3P1/12P2),
   nenhum rejeitado/adiado.
   Reviewer teve limite de sandbox em listeners; suíte completa fora dele passou,
   e go test ./pkg/whatsmeow/service -count=1 repetido agora passou0 (sessão94355).
@@ -39,7 +39,7 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual: pools encerrados; roteiro de duração pronto, aguardandoR10.**
+- **Etapa atual: iniciar2h autorizadas; R11limpa/46fa181.**
   Tuan autorizou repetir2h com recuperação/sync/entrega em até60s e contar quedas.
   Duração e282b2eb interrompida após2468,498s (41min08,5s),
   statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
@@ -77,8 +77,7 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
   Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
   respondido no chat, telefone não salvo neste diário.
-- **Próximos passos:** aguardarR10 e tratar qualquer achado com regressão; após revisão
-  limpa, iniciar/concluir2h autorizadas (caffeinate+media_traffic --recovery-seconds60); consolidar
+- **Próximos passos:** iniciar/concluir2h autorizadas (caffeinate+media_traffic --recovery-seconds60); consolidar
   evidências e abrir PR no fork. Código e revisão já concluídos; sem push por enquanto.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
@@ -1157,3 +1156,23 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   Diagnóstico de erro não sobrescreve contadores usados no resultado.
 - Nenhuma mudança no aplicativo/imagem. Próximo: smoke do novo finalizador,
   commit e revisão seguinte até limpa; só então iniciar7200s.
+
+### 2026-11-11, 23:16 BRT — Smoke do finalizador passou; R11 em andamento
+
+- 5b135557, harness46fa181:6/6entregas,8.032s,semquedas. Novo observed_until_utc
+  compartilhado entre observador e contadores funcionou contra logs Docker reais.
+- go build ./... e go vet ./... passaram novamente; go test ./... já passou
+  com a regressão nova de store. Nenhuma alteração adicional no aplicativo Go.
+- R11 em andamento em46fa181 (sessão77929); arquivo .code-review-log/round-11.txt.
+  Não trocar snapshot enquanto rodar. Ainda não iniciar7200s até vir limpa.
+
+### 2026-11-11, 23:22 BRT — R11 limpa; início autorizado da duração
+
+- R11exit0: sem novos achados, snapshot46fa181.15achados totais corrigidos,
+  3P1/12P2, nenhum rejeitado/adiado. Registro consolidado atualizado.
+- Smoke5b135557 passou6/6 e finalizador com corte fixo contra Docker real.
+- Próxima ação imediata: caffeinate -i python3 -u scripts/offline-sync/media_traffic.py
+  --label after --duration-seconds7200 --interval-seconds300 --recovery-seconds60.
+  Sem injeção de falhas nessa execução. Logs privados: soak-recovery-46fa181.log.
+- Registrar ID da execução/sessão após iniciar, checkpoints/contagens ao longo,
+  resultado final antes de abrir PR. Imagem do aplicativo permanece4dc9496/f072697.
