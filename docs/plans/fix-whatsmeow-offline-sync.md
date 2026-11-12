@@ -5,6 +5,33 @@ Atualizado em 2026-11-11, 16:20 BRT. Branch: `fix/whatsmeow-offline-sync`, criad
 
 ## Objetivo e condição de conclusão
 
+### Extensão autorizada — pools PostgreSQL por reconexão
+
+Tuan solicitou comparar conexões reais em `pg_stat_activity`, apenas no laboratório.
+Antes de retomar a duração, executar o seguinte roteiro documentado:
+
+1. Preservar o PostgreSQL local, licença e os dois pareamentos. Trocar somente o
+   container da API, primeiro para a imagem original e depois para a candidata
+   final, validando daemon Unix local, labels e IDs das imagens. Não consultar
+   banco nem logs de produção para este experimento.
+2. Em cada processo novo, conectar os mesmos dois dispositivos e aguardar dez
+   segundos. Consultar a partir do banco de manutenção `postgres`, para que a
+   própria medição não conte como conexão em `offline_sync_auth`.
+3. Registrar contagem inicial, depois de cada uma de **20 reconexões sequenciais
+   do receptor** via `/instance/reconnect`, e após trinta segundos ao final.
+   Usar três segundos de acomodação após cada sincronização. Manter o remetente
+   autenticado e conferir `OfflineSyncCompleted` e uma entrega real por ciclo.
+4. Salvar somente contagens por estado, horários, versão da imagem e resultados
+   booleanos de sync/entrega. Não coletar SQL de sessões, telefones, tokens,
+   strings de conexão ou conteúdo de mensagens.
+5. Comparar início/fim/delta e sequência das vinte amostras. Se a referência
+   acumular, registrar como defeito confirmado separado da hipótese do congelamento.
+   Conferir se o inicializador compartilhado já corrige o defeito; se necessário,
+   corrigir com regressão vermelho/verde e repetir. Documentar mesmo se não acumular.
+6. Restaurar a candidata e deixar o laboratório preservado. A decisão sobre
+   repetir/adaptar o teste de duração continua pendente; não alterar seu critério
+   de parada nem iniciar outra execução longa implicitamente.
+
 Restabelecer o recebimento estável depois de quedas e reconexões com a menor
 mudança sustentada por evidência. A biblioteca whatsmeow defasada é uma hipótese,
 não uma causa confirmada. O trabalho termina com um PR no fork, resultados

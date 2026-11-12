@@ -2,6 +2,16 @@
 
 ## Ponto de retomada
 
+**Extensão em andamento:** Tuan pediu prova local de acúmulo de conexões Postgres.
+Plano registrado antes de executar em `docs/plans/fix-whatsmeow-offline-sync.md`:
+20 reconexões do receptor por imagem, contagens inicial/por ciclo/final após30s,
+consulta de `pg_stat_activity` pelo banco de manutenção `postgres`, sem produção.
+O código atual compartilha `deviceStoreInitializer` entre todas as instâncias do
+único serviço criado no processo; a main abre `sqlstore.New` a cada início e não
+chama `container.Close`. Isso é leitura de código, ainda não resultado medido.
+Preparar roteiro reproduzível e executar original→candidata; preservar PG/licença.
+O teste de duração permanece interrompido, com decisão de critério pendente.
+
 Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais

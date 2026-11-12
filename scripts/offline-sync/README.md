@@ -151,6 +151,35 @@ do ambiente for apropriada; não executar isso durante testes ou ativação.
 
 ## Mídia e duração contínua
 
+## Conexões PostgreSQL por reconexão
+
+Com a imagem de referência já instalada no container **local identificado por
+label**, os dois dispositivos de teste autenticados e nenhum outro experimento
+ativo, execute:
+
+```bash
+python3 scripts/offline-sync/pool_connections.py --label before --cycles 20 --expect-stable
+```
+
+Depois de trocar **somente a API local** para a candidata, preservando o Postgres,
+a licença e os pareamentos, reconecte as sessões salvas com `lab.py connect` e repita:
+
+```bash
+python3 scripts/offline-sync/pool_connections.py --label after --cycles 20 --expect-stable
+```
+
+O roteiro não troca imagens automaticamente. Registra o ID efetivamente em execução,
+usa lock exclusivo, verifica labels e licenciação, aquece os dois sentidos de
+mensagem e mede `pg_stat_activity` pelo banco `postgres`, fora de `offline_sync_auth`.
+Espera 10s inicialmente, 3s por ciclo e 30s ao final. Cada ciclo exige nova conexão,
+sincronização completa, entrega no webhook local e remetente autenticado.
+Os relatórios Markdown ficam em `docs/investigations/2026-11-11-auth-pools-*`;
+JSONs ficam no estado privado ignorado. `--expect-stable` retorna código2 se a
+contagem final superar a inicial; variações transitórias aparecem na tabela.
+Esse teste usa `/instance/reconnect`, não injeta falha de rede nem valida duas horas.
+
+## Mídia e duração contínua
+
 ```sh
 python3 scripts/offline-sync/media_traffic.py --label before
 python3 scripts/offline-sync/media_traffic.py --label after --duration-seconds 7200 --interval-seconds 300
