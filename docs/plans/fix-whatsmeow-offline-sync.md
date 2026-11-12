@@ -1,0 +1,359 @@
+# Plano de correção da sincronização offline do WhatsApp
+
+Atualizado em 2026-11-12, 01:26 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+`main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
+
+## Objetivo e condição de conclusão
+
+### Extensão autorizada — pools PostgreSQL por reconexão
+
+Tuan solicitou comparar conexões reais em `pg_stat_activity`, apenas no laboratório.
+Antes de retomar a duração, executar o seguinte roteiro documentado:
+
+1. Preservar o PostgreSQL local, licença e os dois pareamentos. Trocar somente o
+   container da API, primeiro para a imagem original e depois para a candidata
+   final, validando daemon Unix local, labels e IDs das imagens. Não consultar
+   banco nem logs de produção para este experimento.
+2. Em cada processo novo, conectar os mesmos dois dispositivos e aguardar dez
+   segundos. Consultar a partir do banco de manutenção `postgres`, para que a
+   própria medição não conte como conexão em `offline_sync_auth`.
+3. Registrar contagem inicial, depois de cada uma de **20 reconexões sequenciais
+   do receptor** via `/instance/reconnect`, e após trinta segundos ao final.
+   Usar três segundos de acomodação após cada sincronização. Manter o remetente
+   autenticado e conferir `OfflineSyncCompleted` e uma entrega real por ciclo.
+4. Salvar somente contagens por estado, horários, versão da imagem e resultados
+   booleanos de sync/entrega. Não coletar SQL de sessões, telefones, tokens,
+   strings de conexão ou conteúdo de mensagens.
+5. Comparar início/fim/delta e sequência das vinte amostras. Se a referência
+   acumular, registrar como defeito confirmado separado da hipótese do congelamento.
+   Conferir se o inicializador compartilhado já corrige o defeito; se necessário,
+   corrigir com regressão vermelho/verde e repetir. Documentar mesmo se não acumular.
+6. Restaurar a candidata e deixar o laboratório preservado. A decisão sobre
+   repetir/adaptar o teste de duração continua pendente; não alterar seu critério
+   de parada nem iniciar outra execução longa implicitamente.
+
+Restabelecer o recebimento estável depois de quedas e reconexões com a menor
+mudança sustentada por evidência. A biblioteca whatsmeow defasada é uma hipótese,
+não uma causa confirmada. O trabalho termina com um PR no fork, resultados
+comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
+imagem e deploy ficam fora da autorização atual.
+
+**Estado atual:** validação local e revisão concluídas como candidata experimental.
+Tuan autorizou prosseguir após a referência não reproduzir o congelamento, e depois
+aprovou duas horas contando quedas com recuperação/sync/entrega até60s. O teste passou.
+O vazamento de pools foi demonstrado e corrigido; a causa do congelamento permanece
+aberta. Push apenas academia e PR no fork concluídos: https://github.com/performance-academia-lendaria/evolution-go/pull/2. Trabalho encerrado nessa autorização.
+Produção continua somente leitura; merge, publicação e deploy não estão autorizados.
+
+O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
+é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
+falha ou bloqueio, antes de interromper a sessão. Resultados não executados ficam
+explicitamente pendentes; preparação de um teste não equivale à sua execução.
+
+## Limites obrigatórios
+
+- Produção é somente leitura. Não executar deploy, `docker service update`,
+  restart, logout, exclusão de instância ou qualquer escrita na EC2 ou nos bancos
+  `evolution-auth` e `evolution-instances`.
+- Nunca testar em instâncias de produção, `evoapi1` ou `evoapi3`. Usar apenas
+  Docker local, PostgreSQL descartável e número exclusivo de teste pareado pelo
+  Tuan. Webhook exclusivamente local, nunca `api.superagentes.ai`.
+- Não abrir arquivos de segredos, inspecionar ambientes completos de containers
+  nem imprimir licença, tokens, credenciais ou connection strings. Comparações
+  necessárias usam somente comprimento ou SHA-256. Credenciais novas do laboratório
+  são geradas e consumidas automaticamente sem aparecer nos relatórios.
+- Se for necessário ler logs da EC2, processar no servidor e retornar somente
+  contagens e trechos sanitizados, com telefones substituídos por `<n>` e nenhum
+  conteúdo de mensagem. Não deixar arquivos temporários no servidor.
+- Push somente para `academia`, repositório
+  `performance-academia-lendaria/evolution-go`, nesta branch. Nunca enviar para
+  `origin`, que corresponde ao upstream `evolution-foundation/evolution-go`.
+- Preservar os ajustes de versão/handshake dos commits `8b5ee5b`, `ac201ae`,
+  `cc91d72`, `66734e1` e `3994d10`, e os testes existentes.
+- Commits e PR em inglês, com assuntos conventional commits. Conversa em português.
+- Se não houver reprodução, número de teste disponível, licença local ativa ou
+  outra condição necessária, registrar o bloqueio e perguntar ao Tuan antes de
+  contornar. Não avançar automaticamente à correção.
+
+## Estado inicial e evidência disponível
+
+Fonte histórica local, sem nova verificação em produção:
+`~/Documents/GitHub-Projects/legendsagents/.local/investigations/2026-11-10-agente-nao-responde-whatsapp.md`,
+seção de 2026-11-11.
+
+- Imagem informada em produção: `tuanmedeiros/evolution-go:0.7.2-0.1.0`.
+- Serviços informados: `evogoevoapi1_evogoevoapi1` e
+  `evogoevoapi3_evogoevoapi3`, no alias SSH `aws-superagentes-evolution`.
+- Incidente relatado: `Connected` seguido de `OfflineSyncPreview`, sem
+  `OfflineSyncCompleted`; envio continua e recebimento/recibos param.
+- Investigação anterior: cerca de 18 quedas/h no servidor, frequentemente após
+  `stream:error` com ack de status/media; novo QR não resolve de forma duradoura.
+- Panic relatado em `events.Archive`: conversão indevida para
+  `map[string]interface{}`.
+- Dependência em `main`:
+  `go.mau.fi/whatsmeow v0.0.0-20260630180629-b572e5bcb92b`.
+- A investigação anterior descartou bloqueio da fila pelo envio de webhook,
+  que ocorre de forma assíncrona.
+- O relato de 117 commits novos até 2026-11-10 será conferido contra o upstream
+  quando a Fase 2 estiver autorizada pelo resultado da reprodução.
+
+## Fase 0 — Documentação e preparação
+
+- [x] Conferir branch, estado da árvore, remotos, versão de Go e Docker local.
+- [x] Ler as instruções do repositório, a investigação e a skill de revisão.
+- [x] Criar a branch solicitada a partir de `main`.
+- [x] Registrar o plano completo, limites, critérios e ponto de retomada.
+- [x] Confirmar disponibilidade do número de teste e de outro remetente. Tuan
+  disponibilizou e pareou ambos; usar remetente local para tráfego automatizado.
+- [x] Preparar bootstrap do laboratório e conferir estado da licença sem expor chave.
+- [x] Resolver com o Tuan o bloqueio de licença local inativa. Ativada por ele e
+  conferida pelo agente em 2026-11-11, 14:43 BRT. Pareamento e ciclos pendentes.
+
+## Fase 1 — Reprodução antes da correção
+
+### Ambiente e roteiro
+
+1. Criar o roteiro reproduzível em `scripts/`, sem segredos versionados, com
+   comandos de preparação, estado, pareamento, ciclos, relatório e limpeza.
+2. Fixar a imagem de referência local por ID/digest, registrar arquitetura e
+   relação com o commit de `main`. Não comparar uma referência de código incerta.
+   Caso seja necessário build, usar contexto obtido de arquivos rastreados,
+   sem copiar `.env` nem dados locais para o Docker.
+3. Usar nomes exclusivos e identificação de propriedade dos recursos Docker.
+   Validar que o daemon é local. Subir PostgreSQL temporário e receptor local,
+   sem montar dados, arquivos, volumes ou segredos de produção.
+4. Manter API, banco e receptor em rede interna e uma segunda rede para a saída
+   da API. Com dois números no mesmo processo, usar inicialmente a rota local
+   `/instance/reconnect` para disparar `ReconnectClient` somente no receptor,
+   preservando remetente, banco e webhook. Se um teste de rede separado for
+   autorizado posteriormente, garantir restauração mesmo em interrupção.
+5. Restringir portas publicadas ao loopback. Guardar estado sensível somente em
+   diretório local ignorado (`build/offline-sync-lab/`) com acesso restrito.
+6. Consultar apenas o estado da licença. Se inativa, parar e pedir orientação;
+   não copiar licença de produção, ativar automaticamente ou alterar o gate.
+7. Após os pré-requisitos, parear o número exclusivo por QR. Conferir recebimento
+   inicial e acesso do container ao webhook local.
+
+### Medição
+
+- Executar pelo menos dez ciclos confirmados de queda/reconexão na referência.
+  Fixar duração da queda e janela de recuperação antes do primeiro ciclo, depois
+  de conferir a semântica dos eventos da versão instalada. Registrar os valores.
+- Enviar do outro número marcadores exclusivos antes, durante e depois de cada
+  queda. Registrar confirmação do remetente; mensagem não enviada não pode ser
+  contada como perda. Aguardar e conferir entrega ao webhook local.
+- Correlacionar por ciclo a queda observada, o novo `Connected`, a prévia e a
+  conclusão da sincronização, os marcadores recebidos e os panics. Separar eventos
+  de pareamento inicial dos eventos de reconexão.
+- Guardar apenas metadados necessários: horários, contagens, tipo de mensagem,
+  hash de identificadores e marcadores artificiais do teste. Não guardar payloads
+  completos, telefone, tokens, mídia ou mensagens pessoais.
+- Registrar tentativas inconclusivas separadamente, inclusive queda não observada,
+  falha do remetente, indisponibilidade do receptor ou expiração da janela.
+- Separar quedas forçadas das espontâneas. Expressar a taxa espontânea por
+  instância-hora local; as 18 quedas/h históricas são agregadas do servidor e não
+  constituem o resultado local de referência.
+- Se o defeito não aparecer em pelo menos dez ciclos, registrar o observado e
+  parar para decisão do Tuan, sem atualizar a dependência.
+
+**Saída obrigatória:** script, identidade da referência, configuração não sensível,
+tabela por ciclo, resultado consolidado e decisão explícita de reprodução.
+
+**Resultado da primeira execução:** concluída em 2026-11-11, 15:32 BRT;
+[tabela por ciclo](../investigations/2026-11-11-offline-sync-before-588b5cb3.md).
+Não reproduziu; nenhuma autorização inferida para atualizar a biblioteca. Pergunta
+pendente: quedas reais de socket dirigidas ao receptor, teste de duração na versão
+atual ou manter parado. Tuan escolheu quedas reais de socket. O roteiro inicial chama a rota de reconexão, não simula
+`stream:error` de servidor nem o ack de status/media visto em produção.
+
+### Extensão autorizada — queda real do socket do receptor
+
+1. Acrescentar proxy HTTP CONNECT descartável, sem porta publicada, somente para
+   o receptor; remetente permanece direto. O túnel encaminha bytes TLS sem
+   descriptografar, imprimir ou salvar seu conteúdo.
+2. Validar o proxy primeiro com TCP de eco sintético local: conexão, transporte,
+   encerramento real de sockets, bloqueio temporário de novas conexões e restauração.
+   Ainda não usar WhatsApp nessa verificação.
+3. Aplicar proxy somente em `offline-sync-target` pela API local, reutilizando
+   pareamento existente. A própria rota reconecta para aplicar; registrar essa
+   preparação separadamente dos ciclos medidos. Não reiniciar a API/banco nem
+   parear novamente. Confirmar remetente sem proxy e ambos autenticados.
+4. Novo método do roteiro: fechar túneis ativos do receptor e segurar novos CONNECT
+   por dez segundos. Confirmar queda observada, envio aceito durante a queda e
+   remetente autenticado. Liberar túneis em `finally`; controle independente libera
+   automaticamente em vinte segundos se o processo de teste morrer.
+5. Aguardar a reconexão disparada pelo handler `Disconnected` original, sem chamar
+   a rota `/instance/reconnect` nos ciclos. Registrar número de sockets fechados,
+   restart automático e estado do proxy, além dos indicadores anteriores.
+6. Manter dez ciclos, limites de 30/180 segundos e marcadores antes/durante/depois
+   mais prova de envio do receptor. Salvar nova execução distinta da primeira.
+7. Se reproduzir, preservar a sessão com falha e diagnosticar. Se não reproduzir
+   ou houver outro bloqueio, parar novamente e consultar o Tuan antes de Fase 2.
+
+**Resultado da extensão:** dez sockets efetivamente encerrados, dez `Disconnected`
+com restart automático, remetente autenticado durante todas as quedas, entrega
+completa nos dois sentidos. 32min29s de execução, encerrada em 2026-11-11, 16:20 BRT
+como `not_reproduced`. [Tabela final](../investigations/2026-11-11-offline-sync-before-socket-1d697be3.md).
+Nenhuma alteração de biblioteca autorizada por esse resultado. Pergunta pendente:
+teste de pelo menos duas horas com texto/áudio/imagem, reconexões concorrentes
+dirigidas ao receptor, ou manter parado.
+
+## Fase 2 — Correção mínima condicionada à reprodução
+
+**Alteração de sequência autorizada em 2026-11-11, após os testes:** Tuan sugeriu
+prosseguir com correção na biblioteca apesar da não reprodução. Isso permite
+preparar e validar a atualização como candidata; não transforma testes locais
+verdes em prova de que o incidente em produção foi resolvido. Preservar os dois
+resultados antigos e apresentar essa limitação nos resultados e no eventual PR.
+
+Plano desta etapa: documentar os 117 commits e opções, provar o panic Archive com
+teste na versão antiga, atualizar para `c88388f983b4` via `@latest`, ajustar a
+compilação/Go mínimo, corrigir Archive com vermelho/verde e avaliar o ciclo de vida
+de reconexão com teste antes/depois caso alterado. Depois retomar as Fases 3–5,
+incluindo duração mínima de duas horas, mídia, imagem local e revisão obrigatória.
+
+1. Registrar a evidência que permite iniciar esta fase.
+2. Executar `go get go.mau.fi/whatsmeow@latest` e `go mod tidy`; registrar versão
+   exata e commit resolvido, sem presumir que o upstream permanece igual ao relato.
+3. Ler os commits primários entre `b572e5bcb92b` e a nova versão. Relacionar commit,
+   alteração e impacto em sincronização offline, acks/`SynchronousAck`, sessão
+   unificada no connect, keepalive/reconexão e app state.
+4. Ajustar incompatibilidades de compilação. Decidir e registrar, com fundamento
+   no código e na evidência do teste, se alguma opção nova precisa ser ativada.
+   Não ligar opções por suposição.
+5. Sempre que viável, medir primeiro a atualização isolada para distinguir o
+   efeito da biblioteca dos outros ajustes. Uma melhoria no conjunto, sozinha,
+   não prova qual mudança resolveu a causa.
+6. Reproduzir o panic de `events.Archive` com teste unitário sobre o caminho real,
+   registrar a falha na implementação antiga, corrigir e registrar o teste verde.
+7. Examinar o ciclo de vida de `ReconnectClient`, inclusive callbacks atrasados e
+   pedidos simultâneos. Garantir desconexão do cliente anterior e remoção do handler
+   antes de iniciar outro para o mesmo device. Se precisar mudar, provar o defeito
+   e a correção com teste apropriado, incluindo concorrência quando relevante.
+8. Conferir o diff e os testes de versão/handshake do fork. Não fazer alterações
+   alheias à correção sustentada pela investigação.
+
+## Fase 3 — Validação antes e depois
+
+- [x] Formatar o código Go conforme `gofmt`/`make fmt` e conferir o diff resultante.
+- [x] `go build ./...` limpo.
+- [x] `go vet ./...` limpo.
+- [x] `go test ./...` limpo, inclusive testes de versão/handshake existentes.
+- [x] Registrar para cada regressão o comando e os resultados vermelho/verde.
+- [x] Se houver mudança concorrente, rodar teste com detector de race apropriado.
+- [x] Repetir o roteiro com o mesmo número exclusivo, número de ciclos, tempos,
+  remetente, receptor e critérios da referência; registrar diferenças inevitáveis.
+- [x] Comparar conclusão de sincronização por reconexão, mensagens únicas recebidas
+  por janela, perdas/atrasos, quedas espontâneas por hora e panics.
+- [x] Fazer teste de duração de pelo menos duas horas conectado, com tráfego
+  periódico; fixar e registrar a cadência e todas as interrupções.
+- [x] Conferir envio de texto e mídia; recebimento de texto, áudio e imagem;
+  QR/pareamento funcionando. Registrar cada resultado e lacuna de cobertura.
+- [x] Gerar imagem candidata local `linux/amd64`, registrar tag/ID/digest quando
+  disponível, sem publicar. Não usar novamente a tag de produção.
+
+Se a atualização não resolver, não declarar a hipótese confirmada nem produzir
+um PR como correção comprovada. Registrar o resultado e consultar o Tuan antes
+de ampliar o escopo ou contornar o teste.
+
+## Fase 4 — Revisão obrigatória em ciclos
+
+Usar a skill local
+`~/.agents/skills/tm-codex-review-loop/SKILL.md`. O Tuan já escolheu o modelo e
+esforço para todas as rodadas; não é necessário perguntar novamente.
+
+```sh
+codex review --base main -c model="gpt-6.1-sol" -c model_reasoning_effort="high"
+```
+
+Rodar em background, conferir branch/árvore/diff e não trocar de branch durante
+a revisão. Registrar cada rodada e achado em
+`.code-review-log/fix-whatsmeow-offline-sync.md` (diretório já ignorado).
+Para cada achado: conferir evidência, aceitar e corrigir com teste que falha
+antes/passa depois, ou rejeitar com justificativa. Repetir até o veredito limpo.
+Manter no diário o resumo durável de convergência, decisões, rejeições e lacunas;
+incluir as decisões operacionais e riscos no PR. A revisão não substitui os testes
+com WhatsApp real.
+
+## Fase 5 — PR e parada
+
+1. Obter somente a referência da imagem em execução nos dois serviços por SSH,
+   usando saída formatada de `docker service inspect` para o campo de imagem.
+   Não inspecionar ambiente ou segredos. Registrar o digest efetivamente observado
+   para rollback; um digest local da mesma tag não prova o digest de produção.
+2. Concluir self-review, commits em inglês e conventional commits. Não incluir
+   `AGENTS.md` não rastreado, credenciais ou dados brutos do laboratório.
+3. Conferir o destino e fazer push exclusivamente de
+   `fix/whatsmeow-offline-sync` para `academia`.
+4. Abrir PR em inglês no fork seguindo `.github/pull_request_template.md`, com
+   problema, causa demonstrada/hipóteses descartadas, mudanças, comparação
+   antes/depois, testes, revisão Codex, riscos e rollback pelo digest observado.
+   Não inventar número de issue nem resultados ausentes.
+5. Entregar link do PR, resumo em português, tabela antes/depois e proposta de
+   implantação. Parar sem merge, publicação ou deploy.
+
+Proposta a validar posteriormente: publicar somente mediante pedido explícito;
+primeiro `evoapi3`, observar 24 horas com métricas de recepção e sincronização,
+depois `evoapi1` em janela combinada, com rollback pelo digest registrado.
+Cada merge, publicação e deploy depende de pedido explícito do Tuan.
+
+## Rotina de atualização e retomada
+
+Antes de cada etapa, ler o estado atual do diário e conferir branch/árvore.
+Depois de cada etapa, atualizar o checklist deste plano e acrescentar ao diário:
+horário, ação, evidência, resultado, decisões, arquivos alterados e próximo passo.
+Antes de encerrar ou interromper, registrar recursos locais ainda ativos,
+processos em execução, arquivos sensíveis locais somente pelo caminho, bloqueios
+e comando seguro de retomada/limpeza. Nunca depender apenas do histórico do chat.
+
+## Roteiro complementar — mídia e duração (planejado antes da execução)
+
+- Fixtures sintéticas geradas localmente: PNG de cor sólida e WAV de um segundo
+  com tom; áudio é convertido pelo caminho normal da Evolution/ffmpeg local.
+- Enviar texto, imagem e áudio nas duas direções somente entre os dois números de
+  teste. Confirmar entrega por hash do ID retornado e evento Message recebido
+  (IsFromMe=false), com tipo correto. Não salvar URL de mídia, chaves ou payload.
+- Fazer prova curta na referência durante a construção da candidata. Depois da
+  comparação de reconexões, manter candidata por ≥7200 segundos, lote a cada
+  300 segundos, com os três tipos nos dois sentidos e amostragem de autenticação
+  a cada 2 segundos. Nenhuma queda induzida durante esse intervalo contínuo.
+- Checkpoint após cada envio/entrega/lote; relatório sanitizado em docs e JSON
+  restrito/ignorado. Interrupção, perda de autenticação ou entrega expirada para
+  execução e preserva sessão, sem recuperar ou contornar automaticamente.
+- QR novo na candidata precisa de leitura manual adicional do Tuan; sessões salvas
+  não provam o novo pareamento. Preparar instância local separada sem tocar nas duas
+  sessões usadas pela comparação, e solicitar leitura quando QR estiver disponível.
+
+## Nova execução de duas horas — critério autorizado pelo Tuan
+
+- Repetir7200s com seis envios sintéticos por lote a cada300s: texto, imagem e
+  áudio nas duas vias, webhook exclusivamente local. Imagem do aplicativo f072697.
+- Contar quedas de cada dispositivo usando Disconnected no log local e amostras de
+  autenticação; incluir quedas breves recuperadas entre duas amostras. Guardar
+  somente papel do dispositivo, horários, contagens e hashes/booleans.
+- Uma queda só passa com conexão autenticada, OfflineSyncCompleted e mensagem de
+  prova entregue após a recuperação em até60s desde a queda observada. Registrar
+  tempo e total de recuperações; falhar se qualquer etapa faltar ou exceder limite.
+- Não forçar quedas nem chamar recuperação manual nesse teste. Quedas dos dois
+  números também precisam de recuperação e prova em ambas as direções; limite60s
+  continua valendo. Toda queda deve ter resultado, inclusive perto do término.
+- Panics continuam reprovando. Contar stream errors e reconciliar eventos de queda
+  com logs de restart para não aprovar eventos perdidos pelo observador.
+- Preservar critério estrito como modo padrão; habilitar novo critério explicitamente
+  com opção de CLI. Testar falha antes/sucesso depois e casos sem sync/entrega.
+- Repetir revisão do Codex sobre o roteiro novo; iniciar após regressões passarem e
+  revisão limpa. Registrar checkpoints durante execução. PR só após resultado final.
+
+## Resultado consolidado antes do PR
+
+Fase3 concluída: dez ciclos API e dez TCP por versão, comparação de pools20por
+versão, mídia nas duas vias, QR na SDK nova e duração d147ec0f7206,791s aprovada.
+150/150periódicas+1prova,1queda natural receptor/0remetente, recuperação5,181s,
+0panics/stream errors. Fase4 concluída emR11limpa/46fa181;15achados corrigidos
+com RED/GREEN, nenhum rejeitado. Imagem local4dc9496/f072697, sem publicação.
+Digest de produção reconfirmado somente leitura:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
+Fase5: self-review e destino conferidos; preparar push apenasacademia e PR inglês.
+A causa do congelamento permanece não demonstrada; vazamento de pools confirmado
+localmente (4→44 antes;3→2 depois). Não transformar isso em diagnóstico de produção.
+
+Fase5 concluída: PR #2 no fork (https://github.com/performance-academia-lendaria/evolution-go/pull/2). PARADO após PR; nenhum merge/publicação/deploy.

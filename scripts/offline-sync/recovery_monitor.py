@@ -1,0 +1,157 @@
+"""Observe natural test-account drops and require sync plus a timely inbound probe."""
+
+from datetime import datetime
+import re
+import time
+
+import experiment
+import lab
+
+
+def lifecycle_events(accounts, since, until):
+    # The application logs OfflineSyncCompleted but does not route its webhook.
+    # Use original log times, not async webhook receipt times, for lifecycle
+    # correlation. Return only event names/timestamps/roles, never raw lines.
+    raw = lab.docker("logs", "--timestamps", "--since", since, "--until", until, lab.CONTAINERS[0])
+    result = []
+    for line in (raw.stdout + raw.stderr).splitlines():
+        name = next((name for marker, name in (
+            ("Disconnected detected, restarting instance", "Disconnected"),
+            ("events.Connected to Whatsapp", "Connected"),
+            ("Event: OfflineSyncCompleted,", "OfflineSyncCompleted"),
+        ) if marker in line), None)
+        if name is None:
+            continue
+        for role, account in accounts.items():
+            if account["id"] in line:
+                try:
+                    stamp = line.split(" ", 1)[0]
+                    # Docker emits nanoseconds; Python3.9 accepts microseconds.
+                    stamp = re.sub(r"(\.\d{6})\d+Z$", r"\1Z", stamp)
+                    epoch = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+                result.append((role, name, epoch))
+    return result
+
+
+class RecoveryMonitor:
+    def __init__(self, accounts, report, checkpoint, send_probe, delivered, seconds):
+        self.accounts = accounts
+        self.report = report
+        self.checkpoint = checkpoint
+        self.send_probe = send_probe
+        self.delivered = delivered
+        self.seconds = seconds
+        self.started = report.get("started_epoch", time.time())
+        self.observed_until = self.started
+        self.seen_disconnects = set()
+        self.seen_log_events = set()
+        self.log_events = []
+        self.log_since = experiment.utc(self.started)
+        report["drops"] = []
+
+    def _drop(self, role, epoch, origin):
+        row = {"role": role, "disconnected_epoch": epoch, "origin": origin,
+               "recovered": False, "probe": None}
+        self.report["drops"].append(row)
+        return row
+
+    def _observe(self):
+        signals = {role: {"Connected": [], "OfflineSyncCompleted": []} for role in self.accounts}
+        read_started = time.time()
+        for event in lifecycle_events(self.accounts, self.log_since, experiment.utc(read_started)):
+            if self.started <= event[2] <= read_started and event not in self.seen_log_events:
+                self.seen_log_events.add(event)
+                self.log_events.append(event)
+        # Overlap reads, using their start time rather than their completion time.
+        self.log_since = experiment.utc(max(self.started, read_started - 1))
+        self.observed_until = read_started
+        for role, name, epoch in sorted(self.log_events, key=lambda event: event[2]):
+            if name == "Disconnected" and (role, epoch) not in self.seen_disconnects:
+                self.seen_disconnects.add((role, epoch))
+                # A status sample can notice a drop before its log is read.
+                # Merge that observation rather than counting one drop twice.
+                sampled = next((row for row in self.report["drops"]
+                                if row["role"] == role and row["origin"] == "authentication_sample"
+                                and epoch <= row.get("recovered_epoch", time.time())), None)
+                if sampled is None:
+                    sampled = self._drop(role, epoch, "Disconnected_log")
+                else:
+                    sampled["origin"] = "Disconnected_log+authentication_sample"
+                    sampled["disconnected_epoch"] = min(sampled["disconnected_epoch"], epoch)
+                    if sampled["recovered"]:
+                        sampled["recovery_seconds"] = round(sampled["recovered_epoch"] - sampled["disconnected_epoch"], 3)
+                        if sampled["recovery_seconds"] > self.seconds:
+                            sampled["recovered"] = False
+                            self.checkpoint()
+                            raise lab.LabError("STOP: a late drop event proves recovery exceeded the recovery limit.")
+            elif name in signals[role]:
+                signals[role][name].append(epoch)
+        states = {role: experiment.authenticated(account) for role, account in self.accounts.items()}
+        self.report["authentication_samples"] += 1
+        for role, authenticated in states.items():
+            if not authenticated and not any(row["role"] == role and not row["recovered"]
+                                             for row in self.report["drops"]):
+                self._drop(role, time.time(), "authentication_sample")
+        self.report["drop_counts"] = {role: sum(row["role"] == role for row in self.report["drops"])
+                                      for role in self.accounts}
+        self.report["recovered_drops"] = sum(row["recovered"] for row in self.report["drops"])
+        self.report["last_health_utc"] = experiment.utc()
+        self.checkpoint()
+        return signals, states
+
+    def check(self):
+        """Return only when all observed drops have a complete recovery proof."""
+        while True:
+            signals, states = self._observe()
+            pending = [row for row in self.report["drops"] if not row["recovered"]]
+            if not pending:
+                return
+            for row in pending:
+                since = row["disconnected_epoch"]
+                deadline = since + self.seconds
+                connected = next((t for t in signals[row["role"]]["Connected"] if t >= since), None)
+                completed = next((t for t in signals[row["role"]]["OfflineSyncCompleted"] if t >= since), None)
+                row["connected_epoch"], row["sync_completed_epoch"] = connected, completed
+                if all(states.values()) and connected is not None and completed is not None:
+                    if row["probe"] is None and time.time() < deadline:
+                        # Bound the HTTP call by the earliest unresolved deadline.
+                        remaining = min(item["disconnected_epoch"] + self.seconds for item in pending) - time.time()
+                        if remaining > 0:
+                            try:
+                                row["probe"] = self.send_probe(row["role"], min(20, remaining))
+                            except (lab.LabError, OSError):
+                                # A second drop may interrupt this synthetic probe.
+                                # Rescan both accounts, keeping the original deadline.
+                                self.report["recovery_probe_failures"] = self.report.get("recovery_probe_failures", 0) + 1
+                    event = self.delivered(row["probe"]) if row["probe"] else None
+                    if event is not None:
+                        recovered = max(connected, completed, event["received_utc"])
+                        if recovered <= deadline:
+                            row.update(recovered=True, recovered_epoch=recovered,
+                                       recovery_seconds=round(recovered - since, 3))
+                            row["probe"]["delivered"] = True
+                self.checkpoint()
+                if not row["recovered"] and time.time() >= deadline:
+                    raise lab.LabError("STOP: a natural drop lacked reconnection, sync or delivery within the recovery limit.")
+            if all(row["recovered"] for row in pending):
+                # Scan once more: another drop may have arrived while sending probes.
+                continue
+            time.sleep(0.5)
+
+    def finalize(self):
+        self.check()
+        # Freeze one end time for the final lifecycle observation and counters.
+        # Later events are outside this completed observation window.
+        self.report["observed_until_utc"] = experiment.utc(self.observed_until)
+        for role, account in self.accounts.items():
+            self.report[role + "_logs"] = experiment.log_counts(
+                account, self.report["started_utc"], until=self.report["observed_until_utc"])
+        self.report["drop_counts"] = {role: sum(row["role"] == role for row in self.report["drops"])
+                                      for role in self.accounts}
+        self.report["recovered_drops"] = sum(row["recovered"] for row in self.report["drops"])
+        for role in self.accounts:
+            logged = self.report[role + "_logs"]["automatic_restart"]
+            if logged != self.report["drop_counts"][role]:
+                raise lab.LabError("STOP: logged reconnect count differs from observed drops; recovery coverage is incomplete.")

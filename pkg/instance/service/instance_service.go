@@ -261,8 +261,6 @@ func (i instances) Connect(data *ConnectStruct, instance *instance_model.Instanc
 	if !isInstanceRunning {
 		i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Starting new client instance", instance.Id)
 
-		i.killChannel[instance.Id] = make(chan bool)
-
 		clientData := &whatsmeow_service.ClientData{
 			Instance:      instance,
 			Subscriptions: subscribedEvents,
@@ -283,7 +281,7 @@ func (i instances) Connect(data *ConnectStruct, instance *instance_model.Instanc
 			}
 		}
 
-		go i.whatsmeowService.StartClient(clientData)
+		i.whatsmeowService.StartClient(clientData)
 	} else {
 		i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Instance already running, settings updated without restarting client", instance.Id)
 	}
@@ -320,9 +318,12 @@ func (i instances) Disconnect(instance *instance_model.Instance) (*instance_mode
 	if client.IsConnected() {
 		if client.IsLoggedIn() {
 			i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Disconnection successful", instance.Id)
-			i.killChannel[instance.Id] <- true
+			if err := i.stopAndWait(instance); err != nil {
+				return instance, err
+			}
 
 			instance.Events = ""
+			instance.Connected = false
 
 			err := i.instanceRepository.Update(instance)
 			if err != nil {
@@ -335,6 +336,15 @@ func (i instances) Disconnect(instance *instance_model.Instance) (*instance_mode
 
 	i.loggerWrapper.GetLogger(instance.Id).LogWarn("[%s] Ignoring disconnect as it was not connected", instance.Id)
 	return instance, nil
+}
+
+func (i instances) stopAndWait(instance *instance_model.Instance) error {
+	select {
+	case i.killChannel[instance.Id] <- true:
+	case <-time.After(5 * time.Second):
+		// A concurrently canceled worker may already have stopped receiving.
+	}
+	return i.whatsmeowService.ClearInstanceCache(instance.Id, instance.Token)
 }
 
 func (i instances) Logout(instance *instance_model.Instance) (*instance_model.Instance, error) {
@@ -597,13 +607,6 @@ func (i instances) Delete(id string) error {
 		i.clientPointer[instance.Id].Disconnect()
 	}
 
-	// Limpar todos os recursos da instância antes de deletar
-	delete(i.clientPointer, instance.Id)
-	if i.killChannel[instance.Id] != nil {
-		close(i.killChannel[instance.Id])
-		delete(i.killChannel, instance.Id)
-	}
-
 	// Limpar cache via whatsmeow service
 	err = i.whatsmeowService.ClearInstanceCache(instance.Id, instance.Token)
 	if err != nil {
@@ -703,7 +706,7 @@ func (i instances) ForceReconnect(instanceId string, number string) error {
 	if !whatsmeow_service.WAVersionReady() {
 		return whatsmeow_service.ErrWAVersionNotReady
 	}
-	if i.clientPointer[instanceId].IsConnected() && i.clientPointer[instanceId].IsLoggedIn() {
+	if i.clientPointer[instanceId] != nil && i.clientPointer[instanceId].IsConnected() && i.clientPointer[instanceId].IsLoggedIn() {
 		return fmt.Errorf("client already connected")
 	}
 
@@ -712,58 +715,18 @@ func (i instances) ForceReconnect(instanceId string, number string) error {
 		return err
 	}
 
-	instance, err := i.instanceRepository.GetInstanceByID(instanceId)
-	if err != nil {
+	if err := i.whatsmeowService.ReconnectClient(instanceId); err != nil {
 		return err
 	}
 
-	subscribedEvents := strings.Split(instance.Events, ",")
-
-	i.killChannel[instance.Id] = make(chan bool)
-
-	clientData := &whatsmeow_service.ClientData{
-		Instance:      instance,
-		Subscriptions: subscribedEvents,
-		Phone:         "",
-		IsProxy:       false,
-	}
-
-	if instance.Proxy != "" || i.config.ProxyHost != "" {
-		var proxyConfig ProxyConfig
-		err := json.Unmarshal([]byte(instance.Proxy), &proxyConfig)
-		if err != nil {
-			i.loggerWrapper.GetLogger(instance.Id).LogError("[%s] error unmarshalling proxy config: %v", instance.Id, err)
-			return err
-		}
-
-		if proxyConfig.Host != "" || i.config.ProxyHost != "" {
-			clientData.IsProxy = true
-		}
-	}
-
-	if i.clientPointer[instance.Id] != nil {
-		client := i.clientPointer[instance.Id]
-		client.Disconnect()
-
-		select {
-		case i.killChannel[instance.Id] <- true:
-		case <-time.After(5 * time.Second):
-		}
-
-		delete(i.clientPointer, instance.Id)
-		delete(i.killChannel, instance.Id)
-	}
-
-	go i.whatsmeowService.StartClient(clientData)
-
 	time.Sleep(2 * time.Second)
 
-	if i.clientPointer[instance.Id] != nil {
-		if !i.clientPointer[instance.Id].IsConnected() {
+	if i.clientPointer[instanceId] != nil {
+		if !i.clientPointer[instanceId].IsConnected() {
 			return fmt.Errorf("failed to connect")
 		}
 
-		if !i.clientPointer[instance.Id].IsLoggedIn() {
+		if !i.clientPointer[instanceId].IsLoggedIn() {
 			return fmt.Errorf("failed to login")
 		}
 	} else {

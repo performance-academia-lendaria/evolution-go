@@ -1,5 +1,35 @@
 # Evolution GO - Changelog
 
+## 0.7.2-0.1.1 — Unreleased
+
+Compatible fixes on the official Evolution Go 0.7.2 base (tag `0.7.2`,
+commit `9337afc47e10b86cc896a6f432240e40fee95dd1`).
+
+### Fixed
+
+- Share one WhatsApp auth SQL container per process instead of opening another
+  unclosed pool per reconnect. In the local lab, 20 reconnects grew auth sessions
+  from 4 to 44 on the original image; the candidate stayed between 2 and 3.
+- Cancel and await the old client worker, close its socket and remove handlers
+  before replacement. Serialize lifecycle operations, ignore stale callbacks,
+  preserve pending settings and retain global proxy fallback.
+- Preserve the typed `events.Archive` payload to avoid the webhook type-assertion panic.
+- Preserve blocklist and PN/LID HTTP response contracts after the SDK update.
+
+### Changed
+
+- Update official whatsmeow from `b572e5bcb92b` to `c88388f983b4`
+  (`v0.0.0-20261110152934-c88388f983b4`, 117 upstream commits).
+- Require Go 1.26; use Go 1.26.5 in the Docker builder. SDK SQL migrations 15/16
+  apply at startup; local rollback tests used the original image against schema 16.
+- Add reproducible local reconnect, socket, SQL-connection, media and stability
+  checks. The reviewed candidate passed 7,206.791 seconds with 150/150 periodic
+  messages and one natural drop recovered with sync and inbound proof in 5.181 seconds.
+
+The production receive-freeze cause remains unconfirmed. Existing fork handshake
+controls and default ack/unified-session options are preserved. Publication of
+this version does not authorize or trigger production deployment.
+
 ## 0.7.2-0.1.0 — Candidata, sem release Git
 
 Primeira versão própria da Academia Lendária, baseada no Evolution Go 0.7.2.
