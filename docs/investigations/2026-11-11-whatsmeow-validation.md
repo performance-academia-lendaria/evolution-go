@@ -1,6 +1,6 @@
 # Validação da candidata whatsmeow offline sync
 
-**Estado: pools validados; preparar nova duração autorizada com recuperação até60s. A causa de produção permanece aberta.**
+**Estado: pools validados; nova duração em execução d147ec0f, recuperação até60s. A causa de produção permanece aberta.**
 Tuan autorizou a atualização como candidata experimental depois que os dois métodos
 locais não reproduziram o incidente. A conclusão deste relatório aguarda a nova execução de duas horas autorizada pelo Tuan.
 

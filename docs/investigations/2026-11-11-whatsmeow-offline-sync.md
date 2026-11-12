@@ -39,7 +39,12 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual: iniciar2h autorizadas; R11limpa/46fa181.**
+- **Etapa atual: DURAÇÃO EM EXECUÇÃO d147ec0f, sessãoPTY49229.**
+  Início2026-11-12T02:23:38.873UTC (2026-11-11 23:23BRT), mínimo7200s;
+  final previsto após04:23:38.873UTC/01:23BRT. caffeinate ativo; não iniciar outro
+  experimento, trocar/reiniciar API ou mexer nos pareamentos. Estado e relatório
+  em media-after-d147ec0f.json e2026-11-11-offline-sync-media-after-d147ec0f.md.
+  Log privado soak-recovery-46fa181.log. Só monitorar/registrar até terminar.
   Tuan autorizou repetir2h com recuperação/sync/entrega em até60s e contar quedas.
   Duração e282b2eb interrompida após2468,498s (41min08,5s),
   statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
@@ -1176,3 +1181,11 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   Sem injeção de falhas nessa execução. Logs privados: soak-recovery-46fa181.log.
 - Registrar ID da execução/sessão após iniciar, checkpoints/contagens ao longo,
   resultado final antes de abrir PR. Imagem do aplicativo permanece4dc9496/f072697.
+
+Execução longa iniciada: d147ec0f, sessãoPTY49229, started_utc=2026-11-12T02:23:38.873122Z.
+Harnês3abf955 (código revisto46fa181), imagem4dc9496/f072697.
+Não provocar falha, chamar reconexão manual, parear, trocar API ou rodar outro teste.
+Monitorar report/status/heartbeat, registrar quedas/resultados; aguardar exit antes de PR.
+
+Checkpoint02:26UTC: d147ec0frunning,2.6min,1lote,6aceitas/6entregues,
+quedas target0/sender0, heartbeat02:26:14UTC. Monitorar até terminar; sessão49229.
