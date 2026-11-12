@@ -10,6 +10,7 @@ import math
 import os
 import secrets
 import struct
+import subprocess
 import sys
 import time
 import wave
@@ -74,9 +75,12 @@ def save(report, json_path, markdown_path):
              "Status: **" + report["status"] + "**", "",
              "- Run: `" + report["run"] + "`; label: `" + report["label"] + "`.",
              "- Image: `" + report["image_id"] + "`.",
+             "- Harness commit: `" + report["harness_commit"] + "`.",
              "- Started: " + report["started_utc"] + ".",
              "- Requested duration: %s seconds; interval: %s seconds." % (report["duration_seconds"], report["interval_seconds"]),
-             "- Only synthetic content, between two exclusive test accounts; no forced outages.",
+             ("- Controlled preflight: one induced target outage, excluded from natural-drop rates."
+              if report.get("controlled_preflight") else
+              "- Only synthetic content, between two exclusive test accounts; no forced outages."),
              "- PNG solid color; WAV 1-second tone sent through normal local audio conversion.",
              "- Delivery requires matching hashed ID, incoming Message and correct media kind.",
              "- Authentication sampled every 2 seconds between batches and before each send.", "",
@@ -105,6 +109,8 @@ def run(args):
     run_id = secrets.token_hex(4)
     started = time.monotonic()
     report = {"run": run_id, "label": args.label, "started_utc": experiment.utc(), "status": "running",
+              "harness_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=lab.ROOT,
+                                                capture_output=True, text=True, check=True).stdout.strip(),
               "image_id": lab.docker("container", "inspect", "--format", "{{.Image}}", lab.CONTAINERS[0]).stdout.strip(),
               "duration_seconds": args.duration_seconds, "interval_seconds": args.interval_seconds,
               "authentication_samples": 0, "batches": [], "recovery_seconds": args.recovery_seconds,

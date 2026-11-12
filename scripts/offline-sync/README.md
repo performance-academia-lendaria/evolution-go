@@ -188,8 +188,9 @@ caffeinate -i python3 -u scripts/offline-sync/media_traffic.py --label after \
 
 `caffeinate` evita suspensão ociosa no Mac; não participa da API. São seis envios
 por lote (texto/imagem/áudio nas duas vias), cerca de150envios em25lotes. O modo
-novo não provoca quedas nem chama reconexão manual. Conta Disconnected do webhook
-e perdas nas amostras de autenticação, deduplicando a mesma queda. Exige Connected,
+novo não provoca quedas nem chama reconexão manual. Conta Disconnected no log local
+e perdas nas amostras de autenticação, deduplicando a mesma queda. Horários originais
+dos logs evitam confundir webhooks atrasados com quedas novas. Exige Connected,
 OfflineSyncCompleted e uma prova de texto recebida em até60s desde a queda observada,
 inclusive quando o socket recupera entre amostras e quando ambos os números caem.
 Cada prova adicional usa ID de mensagem hash para conferir entrega, sem conteúdo.

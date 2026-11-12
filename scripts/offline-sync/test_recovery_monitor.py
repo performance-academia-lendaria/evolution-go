@@ -2,11 +2,12 @@
 
 from contextlib import ExitStack
 import hashlib
+import subprocess
 import unittest
 from unittest.mock import patch
 
 import lab
-from recovery_monitor import RecoveryMonitor
+from recovery_monitor import RecoveryMonitor, lifecycle_events
 
 
 class Clock:
@@ -30,16 +31,22 @@ class RecoveryTest(unittest.TestCase):
         self.stack.enter_context(patch("recovery_monitor.time.time", side_effect=lambda: self.clock.now))
         self.stack.enter_context(patch("recovery_monitor.time.sleep", side_effect=self.clock.sleep))
         self.stack.enter_context(patch("recovery_monitor.experiment.events", side_effect=lambda: [
-            event for available, event in self.timeline if available <= self.clock.now]))
+            event for available, event in self.timeline if available <= self.clock.now
+            and event["event"] != "OfflineSyncCompleted"]))
+        self.stack.enter_context(patch("recovery_monitor.lifecycle_events", side_effect=lambda *args: [
+            (role, event["event"], event.get("log_epoch", event["received_utc"])) for available, event in self.timeline
+            for role in self.accounts if available <= self.clock.now
+            and event["instance_id_sha256"] == hashlib.sha256(role.encode()).hexdigest()]))
         self.stack.enter_context(patch("recovery_monitor.experiment.authenticated", side_effect=lambda account:
                                       self.clock.now >= self.online_at[account["id"]]))
         self.monitor = RecoveryMonitor(self.accounts, self.report, lambda: None,
                                        self.send_probe, self.delivered, 60)
 
-    def event(self, role, name, epoch, available=None):
+    def event(self, role, name, epoch, available=None, log_epoch=None):
         self.timeline.append((epoch if available is None else available, {
             "instance_id_sha256": hashlib.sha256(role.encode()).hexdigest(),
-            "event": name, "received_utc": epoch}))
+            "event": name, "received_utc": epoch,
+            **({"log_epoch": log_epoch} if log_epoch is not None else {})}))
 
     def healthy_recovery(self, role="target", down=11, up=13, complete=14):
         self.event(role, "Disconnected", down)
@@ -109,6 +116,16 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual(len(self.report["drops"]), 1)
         self.assertEqual(self.report["drops"][0]["disconnected_epoch"], 11)
 
+    def test_disconnect_receipt_after_recovery_does_not_count_another_drop(self):
+        self.event("target", "Connected", 13)
+        self.event("target", "OfflineSyncCompleted", 14)
+        self.clock.now = 12
+        self.monitor.check()
+        self.event("target", "Disconnected", 15, log_epoch=12)
+        self.clock.now = 15
+        self.monitor.check()
+        self.assertEqual(len(self.report["drops"]), 1)
+
     def test_restart_log_without_observed_drop_cannot_pass(self):
         self.online_at["target"] = 0
         self.report.update(target_logs={"automatic_restart": 1}, sender_logs={"automatic_restart": 0})
@@ -125,6 +142,21 @@ class RecoveryTest(unittest.TestCase):
         self.clock.now = 73
         with self.assertRaisesRegex(lab.LabError, "recovery limit"):
             self.monitor.check()
+
+
+class CompletionLogTest(unittest.TestCase):
+    def test_reads_handled_completion_timestamp_and_filters_other_instances(self):
+        lines = "\n".join([
+            "2026-11-12T01:00:00.123456789Z [target-device] ===== DISPATCHING WEBHOOK ===== Event: OfflineSyncCompleted, Queue: example",
+            "2026-11-12T01:00:01.000000000Z [unrelated-device] Event: OfflineSyncCompleted, Queue: example",
+            "2026-11-12T01:00:02.000000000Z [sender-device] Unhandled event *events.OfflineSyncPreview: &{Total:1}",
+        ])
+        with patch("recovery_monitor.lab.docker", return_value=subprocess.CompletedProcess([], 0, lines, "")):
+            rows = lifecycle_events({"target": {"id": "target-device"}, "sender": {"id": "sender-device"}}, "start")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], "target")
+        self.assertEqual(rows[0][1], "OfflineSyncCompleted")
+        self.assertAlmostEqual(rows[0][2] % 1, 0.123456, places=6)
 
 
 if __name__ == "__main__":

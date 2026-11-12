@@ -1,10 +1,38 @@
 """Observe natural test-account drops and require sync plus a timely inbound probe."""
 
-import hashlib
+from datetime import datetime
+import re
 import time
 
 import experiment
 import lab
+
+
+def lifecycle_events(accounts, since):
+    # The application logs OfflineSyncCompleted but does not route its webhook.
+    # Use original log times, not async webhook receipt times, for lifecycle
+    # correlation. Return only event names/timestamps/roles, never raw lines.
+    raw = lab.docker("logs", "--timestamps", "--since", since, lab.CONTAINERS[0])
+    result = []
+    for line in (raw.stdout + raw.stderr).splitlines():
+        name = next((name for marker, name in (
+            ("Disconnected detected, restarting instance", "Disconnected"),
+            ("events.Connected to Whatsapp", "Connected"),
+            ("Event: OfflineSyncCompleted,", "OfflineSyncCompleted"),
+        ) if marker in line), None)
+        if name is None:
+            continue
+        for role, account in accounts.items():
+            if account["id"] in line:
+                try:
+                    stamp = line.split(" ", 1)[0]
+                    # Docker emits nanoseconds; Python3.9 accepts microseconds.
+                    stamp = re.sub(r"(\.\d{6})\d+Z$", r"\1Z", stamp)
+                    epoch = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+                result.append((role, name, epoch))
+    return result
 
 
 class RecoveryMonitor:
@@ -16,9 +44,10 @@ class RecoveryMonitor:
         self.delivered = delivered
         self.seconds = seconds
         self.started = time.time()
-        self.identities = {hashlib.sha256(account["id"].encode()).hexdigest(): role
-                           for role, account in accounts.items()}
         self.seen_disconnects = set()
+        self.seen_log_events = set()
+        self.log_events = []
+        self.log_since = experiment.utc(self.started)
         report["drops"] = []
 
     def _drop(self, role, epoch, origin):
@@ -29,23 +58,25 @@ class RecoveryMonitor:
 
     def _observe(self):
         signals = {role: {"Connected": [], "OfflineSyncCompleted": []} for role in self.accounts}
-        for index, event in enumerate(experiment.events()):
-            role = self.identities.get(event.get("instance_id_sha256"))
-            epoch = event.get("received_utc", 0)
-            if role is None or epoch < self.started:
-                continue
-            name = event.get("event")
-            if name == "Disconnected" and index not in self.seen_disconnects:
-                self.seen_disconnects.add(index)
-                # A status sample can notice a drop before its async webhook.
+        read_started = time.time()
+        for event in lifecycle_events(self.accounts, self.log_since):
+            if event[2] >= self.started and event not in self.seen_log_events:
+                self.seen_log_events.add(event)
+                self.log_events.append(event)
+        # Overlap reads, using their start time rather than their completion time.
+        self.log_since = experiment.utc(max(self.started, read_started - 1))
+        for role, name, epoch in sorted(self.log_events, key=lambda event: event[2]):
+            if name == "Disconnected" and (role, epoch) not in self.seen_disconnects:
+                self.seen_disconnects.add((role, epoch))
+                # A status sample can notice a drop before its log is read.
                 # Merge that observation rather than counting one drop twice.
                 sampled = next((row for row in self.report["drops"]
                                 if row["role"] == role and row["origin"] == "authentication_sample"
                                 and epoch <= row.get("recovered_epoch", time.time())), None)
                 if sampled is None:
-                    sampled = self._drop(role, epoch, "Disconnected")
+                    sampled = self._drop(role, epoch, "Disconnected_log")
                 else:
-                    sampled["origin"] = "Disconnected+authentication_sample"
+                    sampled["origin"] = "Disconnected_log+authentication_sample"
                     sampled["disconnected_epoch"] = min(sampled["disconnected_epoch"], epoch)
                     if sampled["recovered"]:
                         sampled["recovery_seconds"] = round(sampled["recovered_epoch"] - sampled["disconnected_epoch"], 3)

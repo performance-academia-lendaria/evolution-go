@@ -328,7 +328,7 @@ e comando seguro de retomada/limpeza. Nunca depender apenas do histórico do cha
 
 - Repetir7200s com seis envios sintéticos por lote a cada300s: texto, imagem e
   áudio nas duas vias, webhook exclusivamente local. Imagem do aplicativo f072697.
-- Contar quedas de cada dispositivo usando eventos Disconnected e amostras de
+- Contar quedas de cada dispositivo usando Disconnected no log local e amostras de
   autenticação; incluir quedas breves recuperadas entre duas amostras. Guardar
   somente papel do dispositivo, horários, contagens e hashes/booleans.
 - Uma queda só passa com conexão autenticada, OfflineSyncCompleted e mensagem de

@@ -1102,3 +1102,33 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   depois; limite60s revalidado mesmo para queda previamente marcada recuperada.
 - Próximos passos: conferir smoke real6mensagens, commitar roteiro e rever com
   CodexCLI gpt-6.1-sol high até limpo. Então iniciar7200s; ainda não iniciado.
+
+### 2026-11-11 — Confirmação de sync pelo log e preflight separado
+
+- Fonte real: handler registra Completed, mas dispatchEvent não tem rota desse
+  evento. Metadados do receptor não continham Completed nem na recuperação503
+  anterior. Corrigido o novo observador para usar timestamps do log Docker local.
+- Parser retorna apenas papel/horário; leitura incremental com sobreposição1s e
+  deduplicação. Nenhum log bruto persistido/impresso. RFC3339Nano do Docker exigiu
+  truncar nanosegundos para Python3.9; fixture RED0eventos, GREEN1evento, leitura
+  real GREEN7Completed locais. Todos12testes Python passaram após os ajustes.
+- RED com suposição de Completed via webhook: recovery limit; GREEN usando log.
+- Antes de iniciar2h, fazer preflight local de30s:6mensagens e uma única queda
+  TCP controlada do receptor por2s, com gate restaurado em finally. Validar
+  observador/Completed/prova/contagem1; separar essa queda induzida das naturais
+  da duração. Mesmo ambiente/números exclusivos já autorizados; nenhum acesso remoto.
+- Review9 ainda roda no snapshot14b5fa5; ajustes de parser serão nova rodada após
+  seu resultado. O teste de7200s só inicia após revisão limpa do roteiro ajustado.
+
+### 2026-11-11 — Preflight aprovado e achadoR9 corrigido
+
+- Preflight f21d35c7:31.887s,6/6mensagens periódicas; uma ação de queda TCP induzida,
+  proxy fechou2túneis,1restart/1queda do receptor e0do remetente. Recuperação com
+  Connected+Completed+prova recebida em3.943s. Sem panics/stream errors. Não conta
+  como duração/natural. Gate restaurado, sem comando manual de reconexão.
+- R9 trouxe1P2 no roteiro: webhook atrasado após a prova gerava outra queda falsa.
+  RED reproduziu (amostra12s, recuperação14.5s, recibo15s). GREEN13testes após usar
+  horários originais dos logs locais para Disconnected/Connected/Completed.
+  Leitura incremental/deduplicada; não expõe linhas brutas nem altera a API.
+- Todos os14achados do Codex até aqui corrigidos com regressão; nenhum rejeitado.
+  Nova rodada necessária no roteiro corrigido antes de iniciar7200s.
