@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11, 22:43 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-12, 01:26 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -38,12 +38,12 @@ não uma causa confirmada. O trabalho termina com um PR no fork, resultados
 comparáveis antes/depois e uma proposta de implantação. Merge, publicação de
 imagem e deploy ficam fora da autorização atual.
 
-**Estado atual:** após as duas execuções sem reprodução, Tuan propôs prosseguir com
-a correção na biblioteca. Fase 2 retomada como **candidata experimental**, mantendo
-explícito que a causa de produção não foi confirmada. Primeiro avaliar/aplicar a
-versão oficial mais recente; só criar patch próprio da biblioteca se houver defeito
-específico demonstrado que a versão oficial não cubra. Produção continua somente
-leitura; merge/publicação/deploy continuam sem autorização.
+**Estado atual:** validação local e revisão concluídas como candidata experimental.
+Tuan autorizou prosseguir após a referência não reproduzir o congelamento, e depois
+aprovou duas horas contando quedas com recuperação/sync/entrega até60s. O teste passou.
+O vazamento de pools foi demonstrado e corrigido; a causa do congelamento permanece
+aberta. Próximo passo autorizado: push apenas academia e PR no fork, seguido de parada.
+Produção continua somente leitura; merge, publicação e deploy não estão autorizados.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
 é o ponto de retomada. Deve ser atualizado após cada etapa, decisão, experimento,
@@ -241,15 +241,15 @@ incluindo duração mínima de duas horas, mídia, imagem local e revisão obrig
 - [x] `go test ./...` limpo, inclusive testes de versão/handshake existentes.
 - [x] Registrar para cada regressão o comando e os resultados vermelho/verde.
 - [x] Se houver mudança concorrente, rodar teste com detector de race apropriado.
-- [ ] Repetir o roteiro com o mesmo número exclusivo, número de ciclos, tempos,
+- [x] Repetir o roteiro com o mesmo número exclusivo, número de ciclos, tempos,
   remetente, receptor e critérios da referência; registrar diferenças inevitáveis.
-- [ ] Comparar conclusão de sincronização por reconexão, mensagens únicas recebidas
+- [x] Comparar conclusão de sincronização por reconexão, mensagens únicas recebidas
   por janela, perdas/atrasos, quedas espontâneas por hora e panics.
-- [ ] Fazer teste de duração de pelo menos duas horas conectado, com tráfego
+- [x] Fazer teste de duração de pelo menos duas horas conectado, com tráfego
   periódico; fixar e registrar a cadência e todas as interrupções.
-- [ ] Conferir envio de texto e mídia; recebimento de texto, áudio e imagem;
+- [x] Conferir envio de texto e mídia; recebimento de texto, áudio e imagem;
   QR/pareamento funcionando. Registrar cada resultado e lacuna de cobertura.
-- [ ] Gerar imagem candidata local `linux/amd64`, registrar tag/ID/digest quando
+- [x] Gerar imagem candidata local `linux/amd64`, registrar tag/ID/digest quando
   disponível, sem publicar. Não usar novamente a tag de produção.
 
 Se a atualização não resolver, não declarar a hipótese confirmada nem produzir
@@ -343,3 +343,15 @@ e comando seguro de retomada/limpeza. Nunca depender apenas do histórico do cha
   com opção de CLI. Testar falha antes/sucesso depois e casos sem sync/entrega.
 - Repetir revisão do Codex sobre o roteiro novo; iniciar após regressões passarem e
   revisão limpa. Registrar checkpoints durante execução. PR só após resultado final.
+
+## Resultado consolidado antes do PR
+
+Fase3 concluída: dez ciclos API e dez TCP por versão, comparação de pools20por
+versão, mídia nas duas vias, QR na SDK nova e duração d147ec0f7206,791s aprovada.
+150/150periódicas+1prova,1queda natural receptor/0remetente, recuperação5,181s,
+0panics/stream errors. Fase4 concluída emR11limpa/46fa181;15achados corrigidos
+com RED/GREEN, nenhum rejeitado. Imagem local4dc9496/f072697, sem publicação.
+Digest de produção reconfirmado somente leitura:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
+Fase5: self-review e destino conferidos; preparar push apenasacademia e PR inglês.
+A causa do congelamento permanece não demonstrada; vazamento de pools confirmado
+localmente (4→44 antes;3→2 depois). Não transformar isso em diagnóstico de produção.

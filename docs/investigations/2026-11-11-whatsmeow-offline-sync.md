@@ -2,97 +2,60 @@
 
 ## Ponto de retomada
 
-**Pools concluídos:** referência b014b2434→44 (+40), candidata ca27b0013→2 (faixa2..3),
-20reconexões/sync/entregas por imagem; REDexit2/GREENexit0 no teste de estabilidade.
-Código do aplicativo continua f072697/4dc9496; regressão sequencial e roteiro revistos
-pelo Codex emR8limpa/86eb808. Evidência detalhada em2026-11-11-whatsmeow-auth-pools.md.
-R9/R10 trouxeram1P2 cada no medidor, corrigidos RED/GREEN; R11 LIMPA
-no snapshot46fa181.14testes Python passam. Smoke finalizador5b135557 passou6/6. Preflight final4a5f41a2:1queda induzida, recuperação
-com sync/prova4.573s,6/6mensagens,0panics/streams. Não contar como queda natural.
-**Nova decisão do Tuan:** repetir2h, contando quedas, aceitas somente com reconexão,
-OfflineSyncCompleted e entrega em até60s. Preparar/documentar roteiro e regressões,
-revisar o código novo e iniciar execução de7200s com tráfego periódico. Não provocar
-quedas nessa execução nem fazer recuperação manual. Se falhar, preservar/parar.
+Atualizado em 2026-11-12, 01:31 BRT / 04:31 UTC.
+**Validação concluída; preparar push e PR, depois parar.**
 
-Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andamento.
-
-- **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
-  não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
-  não ler/modificar/adicionar untitled.md. Nenhum push/PR.
-- **Código da aplicação:** f072697f468b39b68bbc5b852582b9334e2903bb, incluindo fallback do proxy global. User/check PN/LID adaptado,
-  testes e checks completos passaram após correção. SDKc88388f,
-  Go mínimo1.26, DockerBuilder1.26.5. Mutex porID cobre iniciar/reconectar/retirar;
-  pedidos de settings pendentes preservados na publicação; Disconnect aguarda
-  encerramento. Archive e blocklist corrigidos, handshake do fork preservado.
-- **Checks:** build/vet/test completos e race dos três serviços passaram apósR4;
-  regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
-- **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; R6 1P2;
-  R7 LIMPA em f072697; R8 LIMPA em86eb808 com roteiro de pools e teste sequencial.
-  R9/R10 1P2 cada corrigidos; R11 LIMPA em46fa181.15achados corrigidos (3P1/12P2),
-  nenhum rejeitado/adiado.
-  Reviewer teve limite de sandbox em listeners; suíte completa fora dele passou,
-  e go test ./pkg/whatsmeow/service -count=1 repetido agora passou0 (sessão94355).
-  Review log .code-review-log/fix-whatsmeow-offline-sync.md, round-1...7.txt.
-- **Evidência corrigida:** as primeiras execuções tinham contador Completed errado.
-  Seus zeros são inválidos; relatos históricos foram anotados. Repetições com
-  contador correto na imagem original: API 7188d36c e socket a70c1164, dez ciclos
-  cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
-  O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
-  experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual: DURAÇÃO EM EXECUÇÃO d147ec0f, sessãoPTY49229.**
-  Início2026-11-12T02:23:38.873UTC (2026-11-11 23:23BRT), mínimo7200s;
-  final previsto após04:23:38.873UTC/01:23BRT. caffeinate ativo; não iniciar outro
-  experimento, trocar/reiniciar API ou mexer nos pareamentos. Estado e relatório
-  em media-after-d147ec0f.json e2026-11-11-offline-sync-media-after-d147ec0f.md.
-  Log privado soak-recovery-46fa181.log. Só monitorar/registrar até terminar.
-  Tuan autorizou repetir2h com recuperação/sync/entrega em até60s e contar quedas.
-  Duração e282b2eb interrompida após2468,498s (41min08,5s),
-  statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
-  momentânea de conexão disparou o critério rígido do roteiro. NÃO completou2h.
-  SessãoPTY44684 encerrou código2; caffeinate terminou com ela. Nenhum tráfego novo
-  ou recuperação manual foi iniciado até a solicitação posterior dos testes de pools.
-  API/PG/receptor/proxy preservados; só API trocada entre referência/candidata.
-- **Evento observado:** stream:error503 às22:56:28UTC, sem ackstatus/media. Receptor
-  reconectou automaticamente:1Connected,1Preview,1Completed,1restart; remetente
-  sem reconexão. Ambos atualmente autenticados. Panics0. Recepção de novo envio
-  após recuperação ainda não foi testada. Diagnóstico seguro em soak-stop-diagnostics.json.
-- **Decisão recebida:** Tuan escolheu repetir2h aceitando quedas somente com
-  reconexão, sync completo e entrega em até60s; solicitou contagem de quedas.
-  Não abrir PR antes da execução completa e revisão do roteiro ajustado.
-- **Comparação final encerrada:** API07bec535/socketb8739baa:20/20 Completed,
-  entrada60/60 e saída20/20,0panics/streams. Mídia7c526e36 passou6/6. Mesma imagem
-  final f072697, ID4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
-  HTTP PN/LID/defaultFormat verdes. A duração é a única execução longa pendente.
-- **Lab:** evo-offline-sync-lab-api/receiver/postgres/proxy, somente daemon Unix
-  local OrbStack, API loopback18080; QR original loopback18081. PostgreSQL tmpfs:
-  NÃO reiniciar/remover. Licença ativa, dois números de teste pareados. Estado
-  sensível ignorado em build/offline-sync-lab; não imprimir env/instances/proxy.
-  Target por proxy local, sender direto. Gate aberto. Experimentos mutuamente
-  exclusivos via experiment.lock; nenhum ciclo ativo entre as trocas de imagem.
-- **Bancos locais:** offline_sync_auth e offline_sync_instances; cópias anteriores
-  internas com sufixo _before_c88388f. Schema SDK16 agora; imagem antiga conectou e
-  passou ambos testes nesse schema, evidência local de compatibilidade de rollback.
-  Primeira candidata teve migração concorrente de v14->15; não foi perda de pairing.
-- **Mídia:** referência 19d178f4 e candidata final 7c526e36 passaram 6/6 nas duas
-  vias. Na duração interrompida, 54/54 envios de texto/imagem/áudio foram entregues.
-  Nenhuma execução completa de pelo menos duas horas foi aprovada.
-- **QR novo:** Tuan já escaneou companion separado com mesmo número receptor;
-  autenticou e recebeu prova na SDK nova/imagem1df14a7. Resultado sanitizado em
-  build/offline-sync-lab/pairing-check-result.json. Página18082 sessão87951; após
-  troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
-  Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
-  respondido no chat, telefone não salvo neste diário.
-- **Próximos passos:** iniciar/concluir2h autorizadas (caffeinate+media_traffic --recovery-seconds60); consolidar
-  evidências e abrir PR no fork. Código e revisão já concluídos; sem push por enquanto.
-- **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
-  inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
-  Sem leitura de segredos/DB, sem temporários ou mutação remota. Contagens de logs
-  realizadas sem conteúdo/telefones/IDs, concluídas. Service logs32stream_errors
-  em2h evoapi1. Amostra instance.log: Preview41/Completed9,14instâncias com mais
-  previews que conclusões,5com conclusão; cap porarquivo atingido em alguns casos,
-  não censo/taxa. JSONs sanitizados no estado privado. Não requer mais acesso remoto.
-- **Regras finais:** push apenas academia, PR inglês convencional; NÃO origin,
-  merge, publicação ou deploy. Plano completo em ../plans/fix-whatsmeow-offline-sync.md.
+- **Branch/base:** `fix/whatsmeow-offline-sync`, `main@8d77799`. Não ler, modificar
+  ou adicionar os arquivos pessoais não rastreados `AGENTS.md` e `untitled.md`.
+  Nenhum push/PR realizado ainda.
+- **Aplicativo:** `f072697`, SDK `c88388f`, Go 1.26.5. Imagem local Linux/amd64:
+  `sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd`.
+  Tag: `tuanmedeiros/evolution-go:0.7.2-0.1.0-whatsmeow-c88388f-candidate`.
+  Imagem não publicada. Versão/handshake preservados; ack=false/sessionInterval=0.
+- **Pools:** a main abre SQLStore/pool por StartClient sem fechar o anterior.
+  A branch compartilha um container por processo. Após 20 reconexões: original
+  4→44 (+40), candidata 3→2 (faixa 2–3); 20 syncs/provas em cada versão.
+  RED exit2/GREEN exit0; regressão unitária vermelho/verde. Após duas horas,
+  authDB local com 2 conexões ociosas. Nenhuma consulta a banco de produção.
+- **Ciclos:** API10+TCP10 por versão, Completed20/20, entrada60/60, saída20/20.
+  Congelamento de produção não reproduzido. Tuan autorizou candidata experimental.
+  Contadores antigos incorretos invalidados e testes repetidos.
+- **Duração d147ec0f PASS:** 7206,791s, 02:23:38.873122Z→04:23:45.641773Z;
+  25 lotes, 150/150 periódicas (50 de cada tipo) + 1 prova; 3660 amostras.
+  Uma queda natural do receptor, nenhuma do remetente; 5,181s até conexão,
+  Completed e prova. Panics0/stream errors0; nenhuma tentativa interrompida.
+  Sem falha forçada ou recuperação manual. Sessão49229 exit0 e watcher427
+  encerrados; caffeinate terminou. Não aguardar esses processos novamente.
+- **Queda:** 04:14:33.568193Z→04:14:38.749033Z. Causa não isolada. A primeira
+  duração e282b2eb parou aos 41min pelo critério estrito, sem aprovação de duas
+  horas. Preflights induzidos de 3,943s/4,573s são separados da taxa natural.
+- **Revisão:** R11 limpa em `46fa181`. R1:2P1+2P2; R2:1P1+2P2; R3/R4:2P2;
+  R5/R6:1P2; R7/R8:limpas; R9/R10:1P2 no roteiro; R11:limpa.
+  Quinze corrigidos (3P1/12P2), nenhum rejeitado/adiado. 14 testes Python passaram.
+  Build/vet/test Go completos e race dos três serviços passaram. Listeners
+  restritos no sandbox do revisor foram cobertos pela suíte completa no Mac.
+- **Identidade:** runtime não mudou após f072697; só teste sequencial de store,
+  roteiro e docs. Código do roteiro revisto em46fa181; duração usou harness3abf955
+  (mesmo código, documentação posterior). Nenhum ajuste de código depois da R11.
+- **Lab preservado:** API/PG/receptor/proxy, ambos os números autenticados, proxy
+  aberto e autherrors0. Não reiniciar/remover o PG tmpfs: licença/ratchets vivos.
+  Estado privado ignorado em `build/offline-sync-lab`. Companion QR salvo/inativo;
+  não pedir novo QR. Bancos locais offline_sync_auth/offline_sync_instances,
+  schema16; a imagem original já passou nesse schema. Não restaurar sessões antigas.
+- **Produção:** somente leitura. Campo Image dos dois serviços reconfirmado após
+  a duração: `tuanmedeiros/evolution-go:0.7.2-0.1.0@sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68`.
+  Sem consulta a DB/segredos, temporários ou mutações remotas. Contagens sanitizadas
+  anteriores estão no histórico. Não é necessário novo acesso remoto.
+- **GitHub:** academia conferido; main remoto8d77799; branch/PR remotos ausentes.
+  Gofmt dos 11 arquivos Go alterados limpo. Rascunho inglês completo, sem
+  placeholders, em `.code-review-log/pr-body-draft.md`.
+- **Próximo:** commitar relatório/docs, push somente academia, abrir PR no fork,
+  registrar link e entregar resumo/tabela/proposta. Parar sem origin, merge,
+  publicação, deploy ou qualquer alteração em produção. Proposta: evoapi3/24h,
+  depois evoapi1 em janela combinada, rollback pela imagem registrada.
+- **Relatórios:** `2026-11-11-whatsmeow-validation.md` e
+  `2026-11-11-whatsmeow-auth-pools.md`. Review log privado:
+  `.code-review-log/fix-whatsmeow-offline-sync.md`.
 
 ## Critério de registro
 
@@ -1189,3 +1152,64 @@ Monitorar report/status/heartbeat, registrar quedas/resultados; aguardar exit an
 
 Checkpoint02:26UTC: d147ec0frunning,2.6min,1lote,6aceitas/6entregues,
 quedas target0/sender0, heartbeat02:26:14UTC. Monitorar até terminar; sessão49229.
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 5.1, "batches": 2, "accepted": 12, "delivered": 12, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 10.5, "batches": 3, "accepted": 18, "delivered": 18, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.8}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 15.5, "batches": 4, "accepted": 24, "delivered": 24, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.9}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 20.6, "batches": 5, "accepted": 30, "delivered": 30, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.6}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 25.6, "batches": 6, "accepted": 36, "delivered": 36, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.2}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 30.6, "batches": 7, "accepted": 42, "delivered": 42, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.8}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 35.6, "batches": 8, "accepted": 48, "delivered": 48, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.4}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 40.6, "batches": 9, "accepted": 54, "delivered": 54, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.5}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 45.6, "batches": 10, "accepted": 60, "delivered": 60, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.0}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 50.7, "batches": 11, "accepted": 66, "delivered": 66, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.8}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 55.7, "batches": 12, "accepted": 72, "delivered": 72, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.3}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 60.7, "batches": 13, "accepted": 78, "delivered": 78, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 65.7, "batches": 14, "accepted": 84, "delivered": 84, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.9}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 70.7, "batches": 15, "accepted": 90, "delivered": 90, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.6}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 75.7, "batches": 16, "accepted": 96, "delivered": 96, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.5}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 80.8, "batches": 17, "accepted": 102, "delivered": 102, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 85.8, "batches": 18, "accepted": 108, "delivered": 108, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.0}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 90.8, "batches": 19, "accepted": 114, "delivered": 114, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 1.8}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 95.8, "batches": 20, "accepted": 120, "delivered": 120, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.6}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 100.8, "batches": 21, "accepted": 126, "delivered": 126, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 105.0, "batches": 21, "accepted": 126, "delivered": 126, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 110.0, "batches": 23, "accepted": 133, "delivered": 133, "drops": {"target": 0, "sender": 0}, "recovered": 0, "health_age_seconds": 0.3}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 115.0, "batches": 24, "accepted": 140, "delivered": 140, "drops": {"target": 1, "sender": 0}, "recovered": 1, "health_age_seconds": 0.1}
+
+Duração d147ec0f — checkpoint: {"status": "running", "minutes": 120.1, "batches": 25, "accepted": 146, "delivered": 146, "drops": {"target": 1, "sender": 0}, "recovered": 1, "health_age_seconds": 0.7}
+
+Duração d147ec0f — checkpoint: {"status": "pass", "minutes": 120.1, "batches": 25, "accepted": 150, "delivered": 150, "drops": {"target": 1, "sender": 0}, "recovered": 1, "health_age_seconds": 46.9}
+
+### 2026-11-12,01:26BRT — Duração final passou e gates de PR concluídos
+
+- d147ec0fstatuspass,elapsed7206.791s,25lotes/150entregues+1prova,3660amostras.
+ 1queda natural receptor,0remetente, recuperada5.181s.0panics/stream errors.
+ Sessão49229exit0 e watcher427encerrados; sem tráfego adicional após término.
+- Ambosautenticados; authDBlocal2idle; proxyaberto/rejected_auth0. Labpreservado.
+- SSH somente camposNome/Image: ambosserviços seguem no digest5c413...3c68.
+ Nenhuma consultaDB/segredo/temporário/escritaEC2.
+- Forkmain8d77799, PR/branch ainda ausentes. Remotoacademiaexato conferido;
+ gofmt11arquivosGo limpo. Próximaação: commit/pushacademia/PR e parada.

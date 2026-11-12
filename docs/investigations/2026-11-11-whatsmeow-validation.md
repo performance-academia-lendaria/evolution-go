@@ -1,8 +1,8 @@
 # Validação da candidata whatsmeow offline sync
 
-**Estado: pools validados; nova duração em execução d147ec0f, recuperação até60s. A causa de produção permanece aberta.**
+**Estado: validação local concluída; pronta para PR experimental. A causa do congelamento de produção permanece aberta.**
 Tuan autorizou a atualização como candidata experimental depois que os dois métodos
-locais não reproduziram o incidente. A conclusão deste relatório aguarda a nova execução de duas horas autorizada pelo Tuan.
+locais não reproduziram o incidente. A execução de duas horas autorizada pelo Tuan passou, incluindo uma recuperação natural com prova de recebimento.
 
 ## Identidade e ambiente
 
@@ -31,7 +31,7 @@ locais não reproduziram o incidente. A conclusão deste relatório aguarda a no
 | Texto, imagem e áudio nas duas vias | 6/6 na prova curta | 6/6 na prova curta |
 | Pareamento por QR | Dois números pareados por Tuan | QR adicional na SDK nova autenticou e recebeu prova |
 | Conexões authDB após20reconexões+30s | 4→44 (+40) | 3→2, faixa2..3, sem acúmulo |
-| Tráfego periódico por pelo menos 2 h | Não executado na referência | Interrompido: 41min08,5s, 54/54 entregas; 1 queda/erro503, recuperação automática |
+| Tráfego periódico por pelo menos 2 h | Não executado na referência | 2h00min06,791s;150/150;1queda natural recuperada em5,181s |
 | Build / vet / suíte completa | Testes existentes preservados | Passaram em `f072697` |
 | Race dos três serviços alterados | Regressões sintéticas | Passou em `f072697` |
 
@@ -48,7 +48,7 @@ Resultados finais da candidata:
 Foram entregues os 54 envios aceitos antes da queda. Houve um `stream:error`503,
 sem o ack de status/media do relato, e o receptor voltou com OfflineSyncCompleted.
 Não houve novo envio após a recuperação. O roteiro parou na perda momentânea de
-autenticação/conexão. Tuan autorizou repetir2h aceitando recuperação+sync+entrega até60s e contando quedas; preparação em andamento. Nenhuma recuperação manual foi feita.
+autenticação/conexão. Tuan autorizou repetir2h aceitando recuperação+sync+entrega até60s e contando quedas; a repetição foi concluída e passou. Nenhuma recuperação manual foi feita.
 
 As primeiras execuções `588b5cb3` e `1d697be3` tinham contador de Completed incorreto.
 Seus zeros foram invalidados, os relatórios receberam aviso e ambos os métodos foram
@@ -59,6 +59,30 @@ A comparação usa os mesmos números, dez ciclos por método, queda TCP de dez 
 e janela de recuperação de 180 segundos. Envios durante a queda exigem confirmação
 do remetente antes da reconexão. Quedas induzidas ficam separadas das espontâneas.
 O incidente completo não apareceu na referência nem nos ciclos da candidata.
+
+## Duas horas concluídas com recuperação natural
+
+[Duração d147ec0f](2026-11-11-offline-sync-media-after-d147ec0f.md):
+2026-11-12T02:23:38.873122Z→04:23:45.641773Z,7206,791s,25lotes.
+Foram recebidas150/150mensagens periódicas (50textos,50imagens,50áudios) e uma
+prova adicional de recuperação. Houve3660amostras de autenticação. Nenhuma queda
+foi forçada nem foi chamada reconexão manual/restart da API durante essa execução.
+
+- Quedas naturais: receptor1, remetente0; taxa observada0,5/h e0/h, respectivamente.
+- Às04:14:33.568193Z o receptor caiu; Connected+OfflineSyncCompleted+nova mensagem
+  de prova recebida até04:14:38.749033Z: **5,181s**, dentro do limite60s.
+- Contadores finais: receptor1Connected/1Completed/1restart; remetente0restarts.
+  Panics0 e stream errors0. A causa dessa queda natural não foi isolada.
+- Tentativas de envio interrompidas0. Todas as mensagens com ID reconhecido foram
+  entregues. Ambos os dispositivos autenticados ao final; authDB local2conexões
+  ociosas após a duração, sem novo acúmulo.
+- Observação/counters usam o mesmo corte04:23:45.300971Z. Sessão49229 encerrou0;
+  caffeinate e monitor encerrados. Tráfego de teste terminou; laboratório preservado.
+- Preflights controlados separados f21d35c7/4a5f41a2 comprovaram1recuperação cada,
+  em3,943s/4,573s. Essas quedas induzidas não entram na taxa natural da duração.
+
+Não há controle de duas horas na imagem original. A recuperação natural demonstra
+recepção após reconexão nesta candidata; não determina a causa do incidente de produção.
 
 ## Pools PostgreSQL: defeito confirmado localmente
 
@@ -155,7 +179,7 @@ Nenhum. Todos os 15 procediam e foram corrigidos. Nenhum achado de revisão foi 
 A causa de produção continua aberta e sua observação em canário depende de autorização
 futura. Não foram reproduzidos o ack específico de status/media, a carga de 104
 instâncias ou o playback manual da mídia. Também não há cobertura ao vivo de todos
-os endpoints. Não foram criadas issues separadas para esses limites. A duração de duas horas permanece pendente após a interrupção. O próximo teste foi autorizado com recuperação+sync+entrega até60s e contagem de quedas; sua execução permanece pendente.
+os endpoints. Não foram criadas issues separadas para esses limites. A repetição autorizada de duas horas passou; a primeira execução interrompida permanece registrada como histórico.
 
 ## Riscos, rollback e proposta de implantação
 
@@ -169,7 +193,7 @@ evidência local de rollback, sem garantir todos os estados possíveis da produ�
 Recuar dados antigos de sessão pode retroceder ratchets; o rollback proposto preserva
 os dados atuais e troca a imagem para o digest anterior.
 
-Digest atual confirmado dos dois serviços:
+Digest dos dois serviços reconfirmado por leitura formatada em2026-11-12, após a duração (sem acesso a banco/configuração):
 `tuanmedeiros/evolution-go:0.7.2-0.1.0@sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68`.
 
 Após pedidos explícitos separados para publicar a imagem e fazer deploy: começar por

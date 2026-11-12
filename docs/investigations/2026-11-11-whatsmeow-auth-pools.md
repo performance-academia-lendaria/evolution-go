@@ -83,6 +83,6 @@ conforme o plano e README do laboratório. O roteiro registra a imagem real.
 - [after ca27b001](2026-11-11-auth-pools-after-ca27b001.md): 2026-11-12T01:37:58.824576Z → 2026-11-12T01:41:29.583986Z; image ID `sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd`; harness `86eb808cc5cf75bc855ac97f28e950215467b716`.
 
 Plano: [fix-whatsmeow-offline-sync](../plans/fix-whatsmeow-offline-sync.md).
-Tuan autorizou nova duração de duas horas, contando quedas e exigindo reconexão,
-sync completo e entrega em até60s. Preparação em andamento; execução ainda pendente.
+A nova duração d147ec0f passou7206,791s:150/150mensagens periódicas e uma prova,
+1queda natural recuperada em5,181s,0panics/stream errors. Após duração, authDBlocal2idle.
 Nenhum push, PR, merge, publicação de imagem ou deploy foi realizado.
