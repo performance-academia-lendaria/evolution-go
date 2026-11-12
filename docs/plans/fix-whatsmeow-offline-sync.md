@@ -1,6 +1,6 @@
 # Plano de correção da sincronização offline do WhatsApp
 
-Atualizado em 2026-11-11, 16:20 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
+Atualizado em 2026-11-11, 22:43 BRT. Branch: `fix/whatsmeow-offline-sync`, criada a partir de
 `main` em `8d7779988d435842570460f7aeb07ecb953ba548`.
 
 ## Objetivo e condição de conclusão
@@ -323,3 +323,23 @@ e comando seguro de retomada/limpeza. Nunca depender apenas do histórico do cha
 - QR novo na candidata precisa de leitura manual adicional do Tuan; sessões salvas
   não provam o novo pareamento. Preparar instância local separada sem tocar nas duas
   sessões usadas pela comparação, e solicitar leitura quando QR estiver disponível.
+
+## Nova execução de duas horas — critério autorizado pelo Tuan
+
+- Repetir7200s com seis envios sintéticos por lote a cada300s: texto, imagem e
+  áudio nas duas vias, webhook exclusivamente local. Imagem do aplicativo f072697.
+- Contar quedas de cada dispositivo usando eventos Disconnected e amostras de
+  autenticação; incluir quedas breves recuperadas entre duas amostras. Guardar
+  somente papel do dispositivo, horários, contagens e hashes/booleans.
+- Uma queda só passa com conexão autenticada, OfflineSyncCompleted e mensagem de
+  prova entregue após a recuperação em até60s desde a queda observada. Registrar
+  tempo e total de recuperações; falhar se qualquer etapa faltar ou exceder limite.
+- Não forçar quedas nem chamar recuperação manual nesse teste. Quedas dos dois
+  números também precisam de recuperação e prova em ambas as direções; limite60s
+  continua valendo. Toda queda deve ter resultado, inclusive perto do término.
+- Panics continuam reprovando. Contar stream errors e reconciliar eventos de queda
+  com logs de restart para não aprovar eventos perdidos pelo observador.
+- Preservar critério estrito como modo padrão; habilitar novo critério explicitamente
+  com opção de CLI. Testar falha antes/sucesso depois e casos sem sync/entrega.
+- Repetir revisão do Codex sobre o roteiro novo; iniciar após regressões passarem e
+  revisão limpa. Registrar checkpoints durante execução. PR só após resultado final.

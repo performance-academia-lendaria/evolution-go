@@ -2,22 +2,21 @@
 
 ## Ponto de retomada
 
-**Extensão em andamento:** Tuan pediu prova local de acúmulo de conexões Postgres.
-Plano registrado antes de executar em `docs/plans/fix-whatsmeow-offline-sync.md`:
-20 reconexões do receptor por imagem, contagens inicial/por ciclo/final após30s,
-consulta de `pg_stat_activity` pelo banco de manutenção `postgres`, sem produção.
-O código atual compartilha `deviceStoreInitializer` entre todas as instâncias do
-único serviço criado no processo; a main abre `sqlstore.New` a cada início e não
-chama `container.Close`. Isso é leitura de código, ainda não resultado medido.
-Preparar roteiro reproduzível e executar original→candidata; preservar PG/licença.
-O teste de duração permanece interrompido, com decisão de critério pendente.
+**Pools concluídos:** referência b014b2434→44 (+40), candidata ca27b0013→2 (faixa2..3),
+20reconexões/sync/entregas por imagem; REDexit2/GREENexit0 no teste de estabilidade.
+Código do aplicativo continua f072697/4dc9496; regressão sequencial e roteiro revistos
+pelo Codex emR8limpa/86eb808. Evidência detalhada em2026-11-11-whatsmeow-auth-pools.md.
+**Nova decisão do Tuan:** repetir2h, contando quedas, aceitas somente com reconexão,
+OfflineSyncCompleted e entrega em até60s. Preparar/documentar roteiro e regressões,
+revisar o código novo e iniciar execução de7200s com tráfego periódico. Não provocar
+quedas nessa execução nem fazer recuperação manual. Se falhar, preservar/parar.
 
-Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
+Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andamento.
 
 - **Branch/base:** fix/whatsmeow-offline-sync, main8d77799. Arquivos pessoais
   não rastreados: não modificar/adicionar AGENTS.md (instruções já lidas);
   não ler/modificar/adicionar untitled.md. Nenhum push/PR.
-- **Código:** HEADf072697f468b39b68bbc5b852582b9334e2903bb, incluindo fallback do proxy global. User/check PN/LID adaptado,
+- **Código da aplicação:** f072697f468b39b68bbc5b852582b9334e2903bb, incluindo fallback do proxy global. User/check PN/LID adaptado,
   testes e checks completos passaram após correção. SDKc88388f,
   Go mínimo1.26, DockerBuilder1.26.5. Mutex porID cobre iniciar/reconectar/retirar;
   pedidos de settings pendentes preservados na publicação; Disconnect aguarda
@@ -25,7 +24,8 @@ Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
 - **Checks:** build/vet/test completos e race dos três serviços passaram apósR4;
   regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
 - **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; R6 1P2;
-  R7 LIMPA em f072697. 13achados corrigidos (3P1/10P2), nenhum rejeitado/adiado.
+  R7 LIMPA em f072697; R8 LIMPA em86eb808 com roteiro de pools e teste sequencial.
+  13achados corrigidos (3P1/10P2), nenhum rejeitado/adiado.
   Reviewer teve limite de sandbox em listeners; suíte completa fora dele passou,
   e go test ./pkg/whatsmeow/service -count=1 repetido agora passou0 (sessão94355).
   Review log .code-review-log/fix-whatsmeow-offline-sync.md, round-1...7.txt.
@@ -35,20 +35,21 @@ Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual: PARADO aguardando decisão do Tuan**, conforme regra de não
-  contornar bloqueios. Duração e282b2eb interrompida após2468,498s (41min08,5s),
+- **Etapa atual: pools encerrados; preparar duração com critério autorizado.**
+  Tuan autorizou repetir2h com recuperação/sync/entrega em até60s e contar quedas.
+  Duração e282b2eb interrompida após2468,498s (41min08,5s),
   statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
   momentânea de conexão disparou o critério rígido do roteiro. NÃO completou2h.
   SessãoPTY44684 encerrou código2; caffeinate terminou com ela. Nenhum tráfego novo
-  ou recuperação manual foi iniciado depois. API/PG/receptor/proxy preservados.
+  ou recuperação manual foi iniciado até a solicitação posterior dos testes de pools.
+  API/PG/receptor/proxy preservados; só API trocada entre referência/candidata.
 - **Evento observado:** stream:error503 às22:56:28UTC, sem ackstatus/media. Receptor
   reconectou automaticamente:1Connected,1Preview,1Completed,1restart; remetente
   sem reconexão. Ambos atualmente autenticados. Panics0. Recepção de novo envio
   após recuperação ainda não foi testada. Diagnóstico seguro em soak-stop-diagnostics.json.
-- **Decisão pendente:** Tuan recebeu opções: (1)validar entrega pós-recuperação e
-  repetir2h permitindo quedas breves somente com sync/entrega corretos; (2)repetir2h
-  exigindo zeroquedas; (3)parar/revisar. Não escolher nem alterar roteiro antes da resposta.
-  Não abrir PR: validação de duração obrigatória continua pendente.
+- **Decisão recebida:** Tuan escolheu repetir2h aceitando quedas somente com
+  reconexão, sync completo e entrega em até60s; solicitou contagem de quedas.
+  Não abrir PR antes da execução completa e revisão do roteiro ajustado.
 - **Comparação final encerrada:** API07bec535/socketb8739baa:20/20 Completed,
   entrada60/60 e saída20/20,0panics/streams. Mídia7c526e36 passou6/6. Mesma imagem
   final f072697, ID4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd.
@@ -72,8 +73,8 @@ Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
   troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
   Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
   respondido no chat, telefone não salvo neste diário.
-- **Próximos passos:** aguardar a decisão sobre reteste/critério da duração.
-  Depois validar recepção após a queda e concluir a duração autorizada; consolidar
+- **Próximos passos:** ajustar e testar roteiro de recuperação até60s/contagem de
+  quedas; revisar o código novo, iniciar/concluir2h autorizadas; consolidar
   evidências e abrir PR no fork. Código e revisão já concluídos; sem push por enquanto.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
@@ -1059,3 +1060,28 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   imagem f072697. Apenas teste de regressão e roteiro de medição foram adicionados.
 - A primeira troca confirmou licença ativa e ambos os dispositivos autenticados.
   Próximo passo: repetir a referência com marcadores válidos, depois candidata.
+
+### 2026-11-11, 22:37 BRT — Referência acumula pools, medição concluída
+
+- Execução b014b243, harness86eb808, imagem original30cfa84:20reconexões do receptor.
+  Inicial4, sequência6,8,...,44; final44 após30s; delta+40. Todas ociosas nas amostras.
+- Completed20/20, entregas20/20, remetente autenticado20/20, sem restart espontâneo,
+  panic ou stream:error. --expect-stable terminou exit2 como esperado: RED real.
+- Defeito confirmado na integração original: sqlstore.New abre pool por início,
+  sem Close do container aposentado. Não atribuir automaticamente o congelamento
+  de produção a este achado. Não foi consultado banco de produção.
+- Próximo passo: trocar somente API pela candidata4dc9496 e repetir vinte ciclos.
+
+### 2026-11-11, 22:43 BRT — Pools concluídos e nova duração autorizada
+
+- ca27b001 terminou stable, exit0:3→2, faixa2..3,20sync/20provas, remetente
+  autenticado em todas as amostras, sem panics/stream errors/restarts espontâneos.
+- Referência b014b243:4→44, delta+40, exit2 esperado. Relatório consolidado
+  2026-11-11-whatsmeow-auth-pools.md e tabelas completas por execução.
+- Ambos os números autenticados ao final, candidata4dc9496 restaurada, proxy aberto.
+  Nenhum acesso a produção ou mudança adicional no aplicativo.
+- Tuan autorizou repetir2h com quedas aceitas somente se reconexão+Completed+entrega
+  ocorrerem até60s; pediu contagem. Planejamento registrado antes de mudar roteiro.
+- Próximo passo: observador de eventos/estado e prova imediata após cada queda,
+  testes de regressão incluindo queda muito breve não percebida na amostra de auth,
+  falha em sync/entrega/timeout; revisão do Codex; execução longa.

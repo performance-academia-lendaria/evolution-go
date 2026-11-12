@@ -1,8 +1,8 @@
 # Validação da candidata whatsmeow offline sync
 
-**Estado: duração interrompida aos 41 minutos; decisão do Tuan pendente. A causa de produção permanece aberta.**
+**Estado: pools validados; preparar nova duração autorizada com recuperação até60s. A causa de produção permanece aberta.**
 Tuan autorizou a atualização como candidata experimental depois que os dois métodos
-locais não reproduziram o incidente. A conclusão deste relatório aguarda a decisão sobre repetir o teste de duração.
+locais não reproduziram o incidente. A conclusão deste relatório aguarda a nova execução de duas horas autorizada pelo Tuan.
 
 ## Identidade e ambiente
 
@@ -30,6 +30,7 @@ locais não reproduziram o incidente. A conclusão deste relatório aguarda a de
 | Panics / erros de stream nos ciclos | 0 / 0 | 0 / 0 |
 | Texto, imagem e áudio nas duas vias | 6/6 na prova curta | 6/6 na prova curta |
 | Pareamento por QR | Dois números pareados por Tuan | QR adicional na SDK nova autenticou e recebeu prova |
+| Conexões authDB após20reconexões+30s | 4→44 (+40) | 3→2, faixa2..3, sem acúmulo |
 | Tráfego periódico por pelo menos 2 h | Não executado na referência | Interrompido: 41min08,5s, 54/54 entregas; 1 queda/erro503, recuperação automática |
 | Build / vet / suíte completa | Testes existentes preservados | Passaram em `f072697` |
 | Race dos três serviços alterados | Regressões sintéticas | Passou em `f072697` |
@@ -47,7 +48,7 @@ Resultados finais da candidata:
 Foram entregues os 54 envios aceitos antes da queda. Houve um `stream:error`503,
 sem o ack de status/media do relato, e o receptor voltou com OfflineSyncCompleted.
 Não houve novo envio após a recuperação. O roteiro parou na perda momentânea de
-autenticação/conexão. Reteste/critério aguarda decisão; nenhuma ação manual foi feita.
+autenticação/conexão. Tuan autorizou repetir2h aceitando recuperação+sync+entrega até60s e contando quedas; preparação em andamento. Nenhuma recuperação manual foi feita.
 
 As primeiras execuções `588b5cb3` e `1d697be3` tinham contador de Completed incorreto.
 Seus zeros foram invalidados, os relatórios receberam aviso e ambos os métodos foram
@@ -58,6 +59,19 @@ A comparação usa os mesmos números, dez ciclos por método, queda TCP de dez 
 e janela de recuperação de 180 segundos. Envios durante a queda exigem confirmação
 do remetente antes da reconexão. Quedas induzidas ficam separadas das espontâneas.
 O incidente completo não apareceu na referência nem nos ciclos da candidata.
+
+## Pools PostgreSQL: defeito confirmado localmente
+
+Vinte reconexões reais do receptor na imagem original elevaram as conexões de4
+a44, todas ociosas nas amostras; persistiram após30s. Na candidata,3→2, faixa2..3,
+sem crescimento proporcional. Completed20/20 e provas20/20 em ambas. O observador
+consultou pg_stat_activity pelo banco postgres, excluído da contagem de auth.
+
+A main cria sqlstore/container/pool por StartClient e não fecha o pool aposentado.
+A branch já compartilha um container por processo via deviceStoreInitializer; não
+foi necessária outra mudança no aplicativo. Esse achado é da integração EvolutionGo
+e não comprova a causa do congelamento de produção. Detalhes, comandos, identidades
+e regressões RED/GREEN: [comparação dos pools](2026-11-11-whatsmeow-auth-pools.md).
 
 ## Evidência das correções
 
@@ -92,12 +106,18 @@ branch foi trocada enquanto a revisão correspondente estava em execução.
 | 5 | 1 P2 | Corrigido com regressão vermelho/verde |
 | 6 | 1 P2 | Corrigido com regressão vermelho/verde |
 | 7 | Limpa | Código `f072697`, sem novos achados |
+| 8 | Limpa | Snapshot `86eb808`, incluindo medição de pools e regressão sequencial |
 
 Foram corrigidos 13 achados: 3 P1 e 10 P2. O sandbox do revisor restringiu listeners
 locais na execução completa do pacote. No Mac, `go test ./pkg/whatsmeow/service -count=1`
 passou após a revisão, além da suíte completa, build, vet e race já verdes no mesmo
 código. O registro exigido permanece em `.code-review-log/fix-whatsmeow-offline-sync.md`,
 local e ignorado pelo Git conforme a skill.
+
+A oitava rodada revisou a extensão solicitada de pools sem novos achados. O teste
+sequencial de store foi verificado vermelho/verde e o pacote completo passou no Mac.
+O aplicativo da imagem candidata continua sendo `f072697`; a extensão adiciona
+testes e medição, sem nova mudança de runtime.
 
 ### Comportamentos alterados e suas consequências
 
@@ -110,7 +130,7 @@ local e ignorado pelo Git conforme a skill.
 | Callback cancelado é ignorado e job compartilhado identifica o cliente aposentado | Estado do substituto poderia ser sobrescrito ou sua recuperação perdida |
 | Pedido mais recente é aplicado durante a publicação do cliente | Atualização aceita de webhook/subscriptions poderia ser perdida |
 | ForceReconnect e Disconnect aguardam a operação compartilhada, com fallback global de proxy | Substituição descartada, confirmação prematura ou rota ignorada |
-| Inicialização SQL compartilhada, com retry após erro | Duas migrações tentavam adicionar a mesma coluna |
+| Inicialização SQL compartilhada, com retry após erro | Migrações concorrentes e pools acumulados por reconexão (4→44 no ensaio original) |
 | Adaptadores preservam contratos HTTP de bloqueios e PN/LID | Mudança silenciosa de esquema ou identidade na SDK nova |
 | Roteiro usa log real e exige queda comprovada | Medição incorreta de sincronização ou reprodução falsa |
 
@@ -129,8 +149,7 @@ Nenhum. Todos os 13 procediam e foram corrigidos. Nenhum achado de revisão foi 
 A causa de produção continua aberta e sua observação em canário depende de autorização
 futura. Não foram reproduzidos o ack específico de status/media, a carga de 104
 instâncias ou o playback manual da mídia. Também não há cobertura ao vivo de todos
-os endpoints. Não foram criadas issues separadas para esses limites. A duração de duas horas permanece pendente após a interrupção. O próximo teste
-aguarda decisão explícita do Tuan antes de alterar critério ou continuar.
+os endpoints. Não foram criadas issues separadas para esses limites. A duração de duas horas permanece pendente após a interrupção. O próximo teste foi autorizado com recuperação+sync+entrega até60s e contagem de quedas; sua execução permanece pendente.
 
 ## Riscos, rollback e proposta de implantação
 
