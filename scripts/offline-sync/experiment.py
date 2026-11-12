@@ -78,8 +78,11 @@ def send(source, destination, marker):
             "elapsed_seconds": round(time.time() - started, 3), "accepted": True}
 
 
-def log_counts(target, start):
-    raw = lab.docker("logs", "--timestamps", "--since", start, lab.CONTAINERS[0])
+def log_counts(target, start, until=None):
+    command = ["logs", "--timestamps", "--since", start]
+    if until is not None:
+        command += ["--until", until]
+    raw = lab.docker(*command, lab.CONTAINERS[0])
     counts = {"connected": 0, "offline_preview": 0, "offline_completed": 0,
               "automatic_restart": 0, "process_handler_panics": 0, "process_stream_errors": 0}
     # Full lines are neither saved nor returned. Process-level library errors have

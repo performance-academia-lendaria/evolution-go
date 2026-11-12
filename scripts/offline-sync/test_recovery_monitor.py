@@ -21,11 +21,13 @@ class RecoveryTest(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.accounts = {role: {"id": role} for role in ("target", "sender")}
-        self.report = {"authentication_samples": 0}
+        self.report = {"authentication_samples": 0, "started_utc": "start"}
         self.timeline = []
         self.online_at = {"target": 13, "sender": 0}
         self.allow_delivery = True
         self.probes = []
+        self.logged = {"target": 0, "sender": 0}
+        self.log_windows = []
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch("recovery_monitor.time.time", side_effect=lambda: self.clock.now))
@@ -39,6 +41,10 @@ class RecoveryTest(unittest.TestCase):
             and event["instance_id_sha256"] == hashlib.sha256(role.encode()).hexdigest()]))
         self.stack.enter_context(patch("recovery_monitor.experiment.authenticated", side_effect=lambda account:
                                       self.clock.now >= self.online_at[account["id"]]))
+        def counts(account, start, until=None):
+            self.log_windows.append(until)
+            return {"automatic_restart": self.logged[account["id"]]}
+        self.stack.enter_context(patch("recovery_monitor.experiment.log_counts", side_effect=counts))
         self.monitor = RecoveryMonitor(self.accounts, self.report, lambda: None,
                                        self.send_probe, self.delivered, 60)
 
@@ -128,9 +134,22 @@ class RecoveryTest(unittest.TestCase):
 
     def test_restart_log_without_observed_drop_cannot_pass(self):
         self.online_at["target"] = 0
+        self.logged["target"] = 1
         self.report.update(target_logs={"automatic_restart": 1}, sender_logs={"automatic_restart": 0})
         with self.assertRaisesRegex(lab.LabError, "coverage is incomplete"):
             self.monitor.finalize()
+
+    def test_final_counters_include_recovery_observed_during_finalization(self):
+        self.healthy_recovery()
+        self.clock.now = 11
+        self.logged["target"] = 1
+        self.report.update(target_logs={"automatic_restart": 0}, sender_logs={"automatic_restart": 0})
+        self.monitor.finalize()
+        self.assertEqual(self.report["drop_counts"]["target"], 1)
+        self.assertEqual(self.report["target_logs"]["automatic_restart"], 1)
+        self.assertEqual(len(set(self.log_windows)), 1)
+        self.assertIsNotNone(self.log_windows[0])
+        self.assertEqual(self.log_windows, [self.report["observed_until_utc"]] * 2)
 
     def test_late_event_cannot_hide_a_recovery_exceeding_sixty_seconds(self):
         self.online_at["target"] = 71
@@ -151,8 +170,10 @@ class CompletionLogTest(unittest.TestCase):
             "2026-11-12T01:00:01.000000000Z [unrelated-device] Event: OfflineSyncCompleted, Queue: example",
             "2026-11-12T01:00:02.000000000Z [sender-device] Unhandled event *events.OfflineSyncPreview: &{Total:1}",
         ])
-        with patch("recovery_monitor.lab.docker", return_value=subprocess.CompletedProcess([], 0, lines, "")):
-            rows = lifecycle_events({"target": {"id": "target-device"}, "sender": {"id": "sender-device"}}, "start")
+        with patch("recovery_monitor.lab.docker", return_value=subprocess.CompletedProcess([], 0, lines, "")) as docker:
+            rows = lifecycle_events({"target": {"id": "target-device"}, "sender": {"id": "sender-device"}}, "start", "end")
+        self.assertIn("--until", docker.call_args.args)
+        self.assertEqual(docker.call_args.args[docker.call_args.args.index("--until") + 1], "end")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], "target")
         self.assertEqual(rows[0][1], "OfflineSyncCompleted")

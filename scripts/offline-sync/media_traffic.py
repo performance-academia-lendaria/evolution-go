@@ -91,6 +91,7 @@ def save(report, json_path, markdown_path):
             for kind in ("text", "image", "audio")]))
     for field in ("recovery_seconds", "drop_counts", "recovered_drops", "drops", "interrupted_send_attempts",
                   "recovery_probe_failures", "last_health_utc", "drops_per_hour",
+                  "observed_until_utc", "stop_target_logs", "stop_sender_logs",
                   "finished_utc", "elapsed_seconds", "authentication_samples", "stop_reason", "target_logs", "sender_logs"):
         if field in report:
             lines += ["", "- " + field + ": " + json.dumps(report[field])]
@@ -108,7 +109,9 @@ def run(args):
     files = fixtures()
     run_id = secrets.token_hex(4)
     started = time.monotonic()
-    report = {"run": run_id, "label": args.label, "started_utc": experiment.utc(), "status": "running",
+    started_epoch = time.time()
+    report = {"run": run_id, "label": args.label, "started_epoch": started_epoch,
+              "started_utc": experiment.utc(started_epoch), "status": "running",
               "harness_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=lab.ROOT,
                                                 capture_output=True, text=True, check=True).stdout.strip(),
               "image_id": lab.docker("container", "inspect", "--format", "{{.Image}}", lab.CONTAINERS[0]).stdout.strip(),
@@ -187,15 +190,16 @@ def run(args):
                 break
             # Short polling keeps interruptions responsive and samples account health.
             time.sleep(min(2, max(0, next_batch - time.monotonic())))
-        report["target_logs"] = experiment.log_counts(target, report["started_utc"])
-        report["sender_logs"] = experiment.log_counts(sender, report["started_utc"])
         if monitor is not None:
             monitor.finalize()
             if report["target_logs"]["process_handler_panics"]:
                 raise lab.LabError("STOP: event handler panic during continuous traffic.")
-        elif any(report[role][key] for role in ("target_logs", "sender_logs")
-                 for key in ("automatic_restart", "process_handler_panics", "process_stream_errors")):
-            raise lab.LabError("STOP: reconnect, panic or stream error during continuous traffic; inspect sanitized counts.")
+        else:
+            report["target_logs"] = experiment.log_counts(target, report["started_utc"])
+            report["sender_logs"] = experiment.log_counts(sender, report["started_utc"])
+            if any(report[role][key] for role in ("target_logs", "sender_logs")
+                   for key in ("automatic_restart", "process_handler_panics", "process_stream_errors")):
+                raise lab.LabError("STOP: reconnect, panic or stream error during continuous traffic; inspect sanitized counts.")
         report["status"] = "pass"
     except (lab.LabError, OSError, ValueError, KeyboardInterrupt) as error:
         report["status"] = "stopped"
@@ -210,7 +214,7 @@ def run(args):
         if report["status"] != "pass":
             for role, account in accounts.items():
                 try:
-                    report[role + "_logs"] = experiment.log_counts(account, report["started_utc"])
+                    report["stop_" + role + "_logs"] = experiment.log_counts(account, report["started_utc"])
                 except lab.LabError:
                     report["final_log_counts_unavailable"] = True
         checkpoint()

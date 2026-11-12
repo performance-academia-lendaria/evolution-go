@@ -6,6 +6,9 @@
 20reconexões/sync/entregas por imagem; REDexit2/GREENexit0 no teste de estabilidade.
 Código do aplicativo continua f072697/4dc9496; regressão sequencial e roteiro revistos
 pelo Codex emR8limpa/86eb808. Evidência detalhada em2026-11-11-whatsmeow-auth-pools.md.
+R9 trouxe1P2 no medidor de duração, corrigido RED/GREEN; R10 em execução no snapshot
+098d8bd.13testes Python passam. Preflight final4a5f41a2:1queda induzida, recuperação
+com sync/prova4.573s,6/6mensagens,0panics/streams. Não contar como queda natural.
 **Nova decisão do Tuan:** repetir2h, contando quedas, aceitas somente com reconexão,
 OfflineSyncCompleted e entrega em até60s. Preparar/documentar roteiro e regressões,
 revisar o código novo e iniciar execução de7200s com tráfego periódico. Não provocar
@@ -25,7 +28,8 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   regressões têm vermelho/verde documentados. Defaults ack=false/sessionInterval=0.
 - **Revisão:** R1 2P1+2P2; R2 1P1+2P2; R3 2P2; R4 2P2; R5 1P2; R6 1P2;
   R7 LIMPA em f072697; R8 LIMPA em86eb808 com roteiro de pools e teste sequencial.
-  13achados corrigidos (3P1/10P2), nenhum rejeitado/adiado.
+  R9 1P2 corrigido; R10 em098d8bd rodando.14achados corrigidos (3P1/11P2),
+  nenhum rejeitado/adiado.
   Reviewer teve limite de sandbox em listeners; suíte completa fora dele passou,
   e go test ./pkg/whatsmeow/service -count=1 repetido agora passou0 (sessão94355).
   Review log .code-review-log/fix-whatsmeow-offline-sync.md, round-1...7.txt.
@@ -35,7 +39,7 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   cada, Completed 20/20, entrada 60/60, saída 20/20, sem panics/stream errors.
   O congelamento de produção NÃO foi reproduzido. Tuan autorizou candidata
   experimental apesar disso; não implica causa confirmada ou deploy aprovado.
-- **Etapa atual: pools encerrados; preparar duração com critério autorizado.**
+- **Etapa atual: pools encerrados; roteiro de duração pronto, aguardandoR10.**
   Tuan autorizou repetir2h com recuperação/sync/entrega em até60s e contar quedas.
   Duração e282b2eb interrompida após2468,498s (41min08,5s),
   statusstopped,54/54entregas em9lotes,1258amostras de autenticação. Uma perda
@@ -73,8 +77,8 @@ Atualizado em 2026-11-11, 22:43 BRT / 2026-11-12 01:43 UTC. Fases2/3/4 em andame
   troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
   Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
   respondido no chat, telefone não salvo neste diário.
-- **Próximos passos:** ajustar e testar roteiro de recuperação até60s/contagem de
-  quedas; revisar o código novo, iniciar/concluir2h autorizadas; consolidar
+- **Próximos passos:** aguardarR10 e tratar qualquer achado com regressão; após revisão
+  limpa, iniciar/concluir2h autorizadas (caffeinate+media_traffic --recovery-seconds60); consolidar
   evidências e abrir PR no fork. Código e revisão já concluídos; sem push por enquanto.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
@@ -1132,3 +1136,24 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   Leitura incremental/deduplicada; não expõe linhas brutas nem altera a API.
 - Todos os14achados do Codex até aqui corrigidos com regressão; nenhum rejeitado.
   Nova rodada necessária no roteiro corrigido antes de iniciar7200s.
+
+### 2026-11-11, 23:04 BRT — Preflight final no código revisado emR10
+
+- 4a5f41a2, harness098d8bd, controlado:6/6mensagens,1queda induzida do receptor,
+ 0remetente,1recuperação automática com sync/prova em4.573s,32.479s de execução.
+ 0panics/stream errors. Gate aberto após controle, pareamentos preservados.
+- Timestamps originais dos logs confirmados em execução real; nenhum comando de
+ reconexão manual. Relatório marcado controlled_preflight para não misturar taxas.
+- R10 ainda em execução no snapshot098d8bd; nenhum teste longo iniciado ainda.
+
+### 2026-11-11 — R10: janela final de medição alinhada
+
+- R10 encontrou1P2 no roteiro: check final podia validar queda nova depois da
+  captura antiga de contadores e reprovar por divergência. RED reproduziu; GREEN
+  com14testes Python após alinhar os horários de corte com Docker --until.
+- Finalização observa/recupera primeiro, registra observed_until_utc e coleta
+  contadores no mesmo intervalo. Leitura de lifecycle usa corte fixo por amostra;
+  eventos posteriores ao corte final ficam fora do intervalo concluído.
+  Diagnóstico de erro não sobrescreve contadores usados no resultado.
+- Nenhuma mudança no aplicativo/imagem. Próximo: smoke do novo finalizador,
+  commit e revisão seguinte até limpa; só então iniciar7200s.

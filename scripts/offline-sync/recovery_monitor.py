@@ -8,11 +8,11 @@ import experiment
 import lab
 
 
-def lifecycle_events(accounts, since):
+def lifecycle_events(accounts, since, until):
     # The application logs OfflineSyncCompleted but does not route its webhook.
     # Use original log times, not async webhook receipt times, for lifecycle
     # correlation. Return only event names/timestamps/roles, never raw lines.
-    raw = lab.docker("logs", "--timestamps", "--since", since, lab.CONTAINERS[0])
+    raw = lab.docker("logs", "--timestamps", "--since", since, "--until", until, lab.CONTAINERS[0])
     result = []
     for line in (raw.stdout + raw.stderr).splitlines():
         name = next((name for marker, name in (
@@ -43,7 +43,8 @@ class RecoveryMonitor:
         self.send_probe = send_probe
         self.delivered = delivered
         self.seconds = seconds
-        self.started = time.time()
+        self.started = report.get("started_epoch", time.time())
+        self.observed_until = self.started
         self.seen_disconnects = set()
         self.seen_log_events = set()
         self.log_events = []
@@ -59,12 +60,13 @@ class RecoveryMonitor:
     def _observe(self):
         signals = {role: {"Connected": [], "OfflineSyncCompleted": []} for role in self.accounts}
         read_started = time.time()
-        for event in lifecycle_events(self.accounts, self.log_since):
-            if event[2] >= self.started and event not in self.seen_log_events:
+        for event in lifecycle_events(self.accounts, self.log_since, experiment.utc(read_started)):
+            if self.started <= event[2] <= read_started and event not in self.seen_log_events:
                 self.seen_log_events.add(event)
                 self.log_events.append(event)
         # Overlap reads, using their start time rather than their completion time.
         self.log_since = experiment.utc(max(self.started, read_started - 1))
+        self.observed_until = read_started
         for role, name, epoch in sorted(self.log_events, key=lambda event: event[2]):
             if name == "Disconnected" and (role, epoch) not in self.seen_disconnects:
                 self.seen_disconnects.add((role, epoch))
@@ -140,6 +142,12 @@ class RecoveryMonitor:
 
     def finalize(self):
         self.check()
+        # Freeze one end time for the final lifecycle observation and counters.
+        # Later events are outside this completed observation window.
+        self.report["observed_until_utc"] = experiment.utc(self.observed_until)
+        for role, account in self.accounts.items():
+            self.report[role + "_logs"] = experiment.log_counts(
+                account, self.report["started_utc"], until=self.report["observed_until_utc"])
         self.report["drop_counts"] = {role: sum(row["role"] == role for row in self.report["drops"])
                                       for role in self.accounts}
         self.report["recovered_drops"] = sum(row["recovered"] for row in self.report["drops"])

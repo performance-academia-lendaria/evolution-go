@@ -107,8 +107,10 @@ branch foi trocada enquanto a revisão correspondente estava em execução.
 | 6 | 1 P2 | Corrigido com regressão vermelho/verde |
 | 7 | Limpa | Código `f072697`, sem novos achados |
 | 8 | Limpa | Snapshot `86eb808`, incluindo medição de pools e regressão sequencial |
+| 9 | 1 P2 | Corrigido: webhook atrasado poderia duplicar contagem de queda |
+| 10 | 1 P2 | Corrigido: alinhar observação e contadores no mesmo corte final |
 
-Foram corrigidos 13 achados: 3 P1 e 10 P2. O sandbox do revisor restringiu listeners
+Foram corrigidos 15 achados: 3 P1 e 12 P2 (o último no novo roteiro de duração). O sandbox do revisor restringiu listeners
 locais na execução completa do pacote. No Mac, `go test ./pkg/whatsmeow/service -count=1`
 passou após a revisão, além da suíte completa, build, vet e race já verdes no mesmo
 código. O registro exigido permanece em `.code-review-log/fix-whatsmeow-offline-sync.md`,
@@ -133,6 +135,7 @@ testes e medição, sem nova mudança de runtime.
 | Inicialização SQL compartilhada, com retry após erro | Migrações concorrentes e pools acumulados por reconexão (4→44 no ensaio original) |
 | Adaptadores preservam contratos HTTP de bloqueios e PN/LID | Mudança silenciosa de esquema ou identidade na SDK nova |
 | Roteiro usa log real e exige queda comprovada | Medição incorreta de sincronização ou reprodução falsa |
+| Observador usa horários originais de lifecycle e prova pós-recuperação até60s | Webhook atrasado poderia contar duas quedas; autenticação sozinha poderia ocultar falta de sync/recepção |
 
 A trava abrange a operação inteira porque reservar somente o worker não protegia a
 limpeza restante do chamador. Configurações pendentes usam uma trava curta separada;
@@ -142,7 +145,7 @@ não são apresentados como causas observadas em produção.
 
 ### Achados rejeitados
 
-Nenhum. Todos os 13 procediam e foram corrigidos. Nenhum achado de revisão foi adiado.
+Nenhum. Todos os 15 procediam e foram corrigidos. Nenhum achado de revisão foi adiado.
 
 ### O que ficou fora
 
