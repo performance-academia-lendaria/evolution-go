@@ -3,7 +3,9 @@
 ## Ponto de retomada
 
 Atualizado em 2026-11-12, 01:31 BRT / 04:31 UTC.
-**CONCLUÍDO: PR #2 aberto no fork. PARAR, sem merge/publicação/deploy.**
+**Nova autorização: seguir até versão/release, imagem publicada, digest e rollback prontos. Sem deploy.**
+
+Plano ativo: `docs/plans/release-0.7.2-0.1.1.md`. A parada anterior permanece no histórico; foi substituída pelo pedido explícito do Tuan para os passos1–4.
 
 PR: https://github.com/performance-academia-lendaria/evolution-go/pull/2
 
