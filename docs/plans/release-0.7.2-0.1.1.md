@@ -3,7 +3,9 @@
 ## Ponto de retomada atual
 
 **Passos1–4 concluídos: merge, versão/tag/release, imagem publicada e rollback prontos.**
-Sem deploy autorizado ou executado. Restam somente os registros finais no repositório.
+Sem deploy autorizado ou executado. Registro final pelo PR #3. Se este documento
+estiver na main após essa integração, a tarefa está encerrada; não repetir merge,
+push de imagem ou criação da release. Só avançar ao deploy mediante novo pedido.
 
 - PR #2 integrado; origem imutável da imagem/tag: `11bb6e4514e0a40b9b0445941e1164acef29f830`.
 - Versão0.7.2-0.1.1; tag Docker `tuanmedeiros/evolution-go:0.7.2-0.1.1`.
@@ -177,7 +179,9 @@ aceita Docker tarball. Downloads terão SHA256 verificado antes da execução.
 ### Publicação concluída
 
 **Passos1–4 concluídos: merge, versão/tag/release, imagem publicada e rollback prontos.**
-Sem deploy autorizado ou executado. Restam somente os registros finais no repositório.
+Sem deploy autorizado ou executado. Registro final pelo PR #3. Se este documento
+estiver na main após essa integração, a tarefa está encerrada; não repetir merge,
+push de imagem ou criação da release. Só avançar ao deploy mediante novo pedido.
 
 - PR #2 integrado; origem imutável da imagem/tag: `11bb6e4514e0a40b9b0445941e1164acef29f830`.
 - Versão0.7.2-0.1.1; tag Docker `tuanmedeiros/evolution-go:0.7.2-0.1.1`.
@@ -199,3 +203,15 @@ Sem deploy autorizado ou executado. Restam somente os registros finais no reposi
   apenas no fork; limpar uploader temporário e parar. Não alterar/mover tag ou
   reconstruir versão publicada. Não fazer deploy. Proposta futura: evoapi3/24h,
   depois evoapi1 em janela combinada, cada um com autorização explícita.
+
+### Encerramento dos registros
+
+PR de documentação #3: https://github.com/performance-academia-lendaria/evolution-go/pull/3
+Revisão Codex gpt-6.1-sol/high limpa em19a3e29,0achados; sem código/config de deploy
+alterados. Teste de versão/changelog passou. Só texto de encerramento depois da
+revisão; imagem/tag/source permanecem11bb6e4 e digest57b22a...a815c completos acima.
+Uploader/pacote temporários e arquivos tar de exportação/pull removidos após as
+verificações; hashes e evidências retidos no estado privado. Nenhuma instalação
+global, novo login, ajuste/restartDocker ou mudança na EC2/bancos. Inspeção final
+somente do campo Image reconfirmou versão0.7.2-0.1.0/digest5c413...3c68 nos dois
+serviços. Encerrar no passo4; proposta futuraevoapi3/24h→evoapi1 aguarda autorização.
