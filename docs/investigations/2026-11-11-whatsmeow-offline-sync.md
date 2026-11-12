@@ -53,16 +53,18 @@ Atualizado em 2026-11-11, 19:59 BRT / 22:59 UTC. Fases2/3/4 em andamento.
   internas com sufixo _before_c88388f. Schema SDK16 agora; imagem antiga conectou e
   passou ambos testes nesse schema, evidência local de compatibilidade de rollback.
   Primeira candidata teve migração concorrente de v14->15; não foi perda de pairing.
-- **Mídia:** prova curta da imagem antiga passou 6/6 (texto/imagem/áudio duas vias),
-  relatório media-before-19d178f4. Candidata ainda não fez mídia nem duração ≥2h.
+- **Mídia:** referência 19d178f4 e candidata final 7c526e36 passaram 6/6 nas duas
+  vias. Na duração interrompida, 54/54 envios de texto/imagem/áudio foram entregues.
+  Nenhuma execução completa de pelo menos duas horas foi aprovada.
 - **QR novo:** Tuan já escaneou companion separado com mesmo número receptor;
   autenticou e recebeu prova na SDK nova/imagem1df14a7. Resultado sanitizado em
   build/offline-sync-lab/pairing-check-result.json. Página18082 sessão87951; após
   troca da API esse companion fica salvo/inativo, mantendo comparação com 2clientes.
   Não pedir outro QR. Tuan pediu identificar número: somente teste local consultado,
   respondido no chat, telefone não salvo neste diário.
-- **Próximos passos:** ciclos candidata; mídia/QR e ≥7200s tráfego periódico;
-  resolver rodada2 com regressões/repetir revisão até limpa; imagem final; PR fork.
+- **Próximos passos:** aguardar a decisão sobre reteste/critério da duração.
+  Depois validar recepção após a queda e concluir a duração autorizada; consolidar
+  evidências e abrir PR no fork. Código e revisão já concluídos; sem push por enquanto.
 - **Produção:** somente imagem dos dois serviços lida via SSH+sudo docker service
   inspect formatado. Ambos digest sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68.
   Sem leitura de segredos/DB, sem temporários ou mutação remota. Contagens de logs
@@ -1007,3 +1009,25 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   usuário e do critério do roteiro, não de sandbox nem de achado pendente do Codex.
 - Código f072697 continua com revisão7limpa/build/vet/test/race verdes. Somente
   documentação/evidência é atualizada. Nenhuma alteração ou novo acesso à produção.
+
+## Esclarecimento: quem fez a reconexão automática
+
+- Tuan perguntou se a reconexão foi manual, da EvolutionGo ou da whatsmeow, e se a
+  versão em produção já faria isso. Código atual, base main e duas versões fixadas
+  da biblioteca foram comparados; nenhuma nova intervenção no laboratório/produção.
+- No evento 503 da duração, não houve chamada manual a endpoint, restart, controle
+  de proxy ou comando de recuperação. O roteiro de mídia apenas envia, monitora e
+  para na perda de conexão. Diagnóstico registrou um restart do handler da EvolutionGo.
+- A biblioteca emite events.Disconnected. A lógica interna da EvolutionGo recebe o
+  evento e chama ReconnectClient; a biblioteca executa a nova conexão/sincronização.
+  EnableAutoReconnect=false permanece tanto na base main (linha431) quanto na
+  candidata (linha559), desativando o ciclo nativo de autoreconexão da whatsmeow.
+- O mesmo handler automático existe na imagem de produção 0.7.2-0.1.0. No teste
+  local da referência before-socket-a70c1164, ela realizou dez reconexões automáticas,
+  com dez conclusões de sincronização e todas as entregas. SDK b572 também encaminha
+  stream:error503 para Disconnected; sua rotina nativa retorna quando o flag é false.
+- Portanto, a capacidade de reconectar sozinha já existia. A candidata altera a
+  coordenação/limpeza da geração anterior e atualiza a SDK. Reconectar não comprova,
+  sozinho, recebimento estável: após o 503 observado falta enviar novo probe, e a
+  duração continua interrompida. Perguntas do Tuan não autorizaram retomar o teste;
+  a escolha anteriormente solicitada permanece pendente.
