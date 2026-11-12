@@ -85,4 +85,4 @@ conforme o plano e README do laboratório. O roteiro registra a imagem real.
 Plano: [fix-whatsmeow-offline-sync](../plans/fix-whatsmeow-offline-sync.md).
 A nova duração d147ec0f passou7206,791s:150/150mensagens periódicas e uma prova,
 1queda natural recuperada em5,181s,0panics/stream errors. Após duração, authDBlocal2idle.
-Nenhum push, PR, merge, publicação de imagem ou deploy foi realizado.
+Push somente academia e [PR #2](https://github.com/performance-academia-lendaria/evolution-go/pull/2) concluídos após a validação. Nenhum merge, publicação de imagem ou deploy foi realizado.

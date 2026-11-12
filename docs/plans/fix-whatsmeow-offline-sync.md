@@ -42,7 +42,7 @@ imagem e deploy ficam fora da autorização atual.
 Tuan autorizou prosseguir após a referência não reproduzir o congelamento, e depois
 aprovou duas horas contando quedas com recuperação/sync/entrega até60s. O teste passou.
 O vazamento de pools foi demonstrado e corrigido; a causa do congelamento permanece
-aberta. Próximo passo autorizado: push apenas academia e PR no fork, seguido de parada.
+aberta. Push apenas academia e PR no fork concluídos: https://github.com/performance-academia-lendaria/evolution-go/pull/2. Trabalho encerrado nessa autorização.
 Produção continua somente leitura; merge, publicação e deploy não estão autorizados.
 
 O [diário da investigação](../investigations/2026-11-11-whatsmeow-offline-sync.md)
@@ -355,3 +355,5 @@ Digest de produção reconfirmado somente leitura:5c41352292072d0f533596389cc944
 Fase5: self-review e destino conferidos; preparar push apenasacademia e PR inglês.
 A causa do congelamento permanece não demonstrada; vazamento de pools confirmado
 localmente (4→44 antes;3→2 depois). Não transformar isso em diagnóstico de produção.
+
+Fase5 concluída: PR #2 no fork (https://github.com/performance-academia-lendaria/evolution-go/pull/2). PARADO após PR; nenhum merge/publicação/deploy.

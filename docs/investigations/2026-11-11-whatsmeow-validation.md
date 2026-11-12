@@ -1,6 +1,6 @@
 # Validação da candidata whatsmeow offline sync
 
-**Estado: validação local concluída; pronta para PR experimental. A causa do congelamento de produção permanece aberta.**
+**Estado: validação local concluída; [PR #2](https://github.com/performance-academia-lendaria/evolution-go/pull/2) aberto. A causa do congelamento de produção permanece aberta.**
 Tuan autorizou a atualização como candidata experimental depois que os dois métodos
 locais não reproduziram o incidente. A execução de duas horas autorizada pelo Tuan passou, incluindo uma recuperação natural com prova de recebimento.
 

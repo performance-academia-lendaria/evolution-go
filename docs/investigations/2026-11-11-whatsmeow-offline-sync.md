@@ -3,11 +3,13 @@
 ## Ponto de retomada
 
 Atualizado em 2026-11-12, 01:31 BRT / 04:31 UTC.
-**Validação concluída; preparar push e PR, depois parar.**
+**CONCLUÍDO: PR #2 aberto no fork. PARAR, sem merge/publicação/deploy.**
+
+PR: https://github.com/performance-academia-lendaria/evolution-go/pull/2
 
 - **Branch/base:** `fix/whatsmeow-offline-sync`, `main@8d77799`. Não ler, modificar
   ou adicionar os arquivos pessoais não rastreados `AGENTS.md` e `untitled.md`.
-  Nenhum push/PR realizado ainda.
+  Push realizado somente para academia; PR #2 aberto no fork.
 - **Aplicativo:** `f072697`, SDK `c88388f`, Go 1.26.5. Imagem local Linux/amd64:
   `sha256:4dc949670b264032b9a7aad44c2c1233fdcc75ebfc83391cf3d47cd4603322dd`.
   Tag: `tuanmedeiros/evolution-go:0.7.2-0.1.0-whatsmeow-c88388f-candidate`.
@@ -46,13 +48,14 @@ Atualizado em 2026-11-12, 01:31 BRT / 04:31 UTC.
   a duração: `tuanmedeiros/evolution-go:0.7.2-0.1.0@sha256:5c41352292072d0f533596389cc9445fc6d3ce1ce551aeb29dfe8b8e923a3c68`.
   Sem consulta a DB/segredos, temporários ou mutações remotas. Contagens sanitizadas
   anteriores estão no histórico. Não é necessário novo acesso remoto.
-- **GitHub:** academia conferido; main remoto8d77799; branch/PR remotos ausentes.
-  Gofmt dos 11 arquivos Go alterados limpo. Rascunho inglês completo, sem
+- **GitHub:** academia conferido; main remoto8d77799; branch enviada e PR #2 aberto.
+  Gofmt dos 11 arquivos Go alterados limpo. Corpo do PR inglês completo, sem
   placeholders, em `.code-review-log/pr-body-draft.md`.
-- **Próximo:** commitar relatório/docs, push somente academia, abrir PR no fork,
-  registrar link e entregar resumo/tabela/proposta. Parar sem origin, merge,
-  publicação, deploy ou qualquer alteração em produção. Proposta: evoapi3/24h,
-  depois evoapi1 em janela combinada, rollback pela imagem registrada.
+- **Parada:** PR #2 aberto após testes/revisão. Nenhum trabalho restante desta
+  autorização. Não executar merge, publicação de imagem ou deploy sem pedidos
+  explícitos separados. Proposta registrada: evoapi3/24h, depois evoapi1 em
+  janela combinada, rollback pela imagem registrada. Tráfego de teste encerrado;
+  laboratório e pareamentos preservados para inspeção.
 - **Relatórios:** `2026-11-11-whatsmeow-validation.md` e
   `2026-11-11-whatsmeow-auth-pools.md`. Review log privado:
   `.code-review-log/fix-whatsmeow-offline-sync.md`.
@@ -1213,3 +1216,13 @@ Duração d147ec0f — checkpoint: {"status": "pass", "minutes": 120.1, "batches
  Nenhuma consultaDB/segredo/temporário/escritaEC2.
 - Forkmain8d77799, PR/branch ainda ausentes. Remotoacademiaexato conferido;
  gofmt11arquivosGo limpo. Próximaação: commit/pushacademia/PR e parada.
+
+### 2026-11-12 — PR aberto e parada
+
+- Push exclusivamente para academia/fix/whatsmeow-offline-sync concluído.
+- PR inglês convencional aberto no fork, base main: https://github.com/performance-academia-lendaria/evolution-go/pull/2
+- Corpo contém problema/causa demonstrada e hipótese aberta, tabela antes/depois,
+ 2h aprovadas, testes,11rodadas de revisão, riscos/migração e rollback5c413...3c68.
+- Nenhum pushorigin, merge, publicação de imagem, deploy ou escrita em produção.
+ Tráfego encerrado, ambos os números autenticados, PG/licença/pareamentos preservados.
+- PARADA conforme fase5. Próximas ações exigem solicitações explícitas individuais.
