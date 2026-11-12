@@ -149,8 +149,6 @@ anterior. Se não reproduzir em dez ciclos ou aparecer outro bloqueio, parar e
 consultar o Tuan novamente. `lab.py down` também remove o proxy quando a limpeza
 do ambiente for apropriada; não executar isso durante testes ou ativação.
 
-## Mídia e duração contínua
-
 ## Conexões PostgreSQL por reconexão
 
 Com a imagem de referência já instalada no container **local identificado por

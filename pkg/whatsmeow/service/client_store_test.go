@@ -46,3 +46,27 @@ func TestDeviceStoreInitializationCanRetryAfterFailure(t *testing.T) {
 		t.Fatal("a transient failure permanently disabled device storage")
 	}
 }
+
+func TestDeviceStoreIsReusedAcrossSequentialReconnects(t *testing.T) {
+	var initializer deviceStoreInitializer
+	opened := 0
+	var first *sqlstore.Container
+	for cycle := range 21 { // Initial connection, then twenty reconnects.
+		got, err := initializer.get(func() (*sqlstore.Container, error) {
+			opened++
+			return &sqlstore.Container{}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cycle == 0 {
+			first = got
+		}
+		if got != first {
+			t.Fatalf("reconnect %d created another device store", cycle)
+		}
+	}
+	if opened != 1 {
+		t.Fatalf("expected one auth pool across twenty reconnects, opened %d", opened)
+	}
+}

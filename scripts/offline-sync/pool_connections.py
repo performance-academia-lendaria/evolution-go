@@ -86,7 +86,7 @@ def run(args):
         # Warm up both directions before the initial sample, so lazy SQL opens
         # needed for normal message traffic do not appear as a reconnect leak.
         for source, destination in ((sender, target), (target, sender)):
-            marker = "EVOSYNC-" + run_id + "-warmup-" + ("in" if destination is target else "out")
+            marker = "EVOSYNC-" + run_id + "-C00-" + ("before" if destination is target else "outbound")
             experiment.send(source, destination, marker)
             if not experiment.wait_for(lambda: experiment.received(destination, marker), 30):
                 raise lab.LabError("STOP: warm-up delivery failed; no valid baseline.")
@@ -107,7 +107,7 @@ def run(args):
                 lambda: experiment.log_counts(target, row["started_utc"])["offline_completed"] > 0, 60, 1)
             if not row["sync_complete"]:
                 raise lab.LabError("STOP: target offline synchronization did not complete.")
-            marker = "EVOSYNC-%s-pool-%02d" % (run_id, index)
+            marker = "EVOSYNC-%s-C%02d-after" % (run_id, index)
             experiment.send(sender, target, marker)
             row["delivered"] = experiment.wait_for(lambda: experiment.received(target, marker), 30)
             if not row["delivered"]:
@@ -143,8 +143,8 @@ def main():
     parser.add_argument("--cycles", type=int, default=20)
     parser.add_argument("--expect-stable", action="store_true")
     args = parser.parse_args()
-    if args.cycles < 10:
-        parser.error("at least ten sequential reconnects are required")
+    if not 10 <= args.cycles <= 99:
+        parser.error("ten to ninety-nine sequential reconnects are required")
     try:
         lab.local_docker()
         with lab.exclusive_experiment():

@@ -1041,3 +1041,21 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
   sozinho, recebimento estável: após o 503 observado falta enviar novo probe, e a
   duração continua interrompida. Perguntas do Tuan não autorizaram retomar o teste;
   a escolha anteriormente solicitada permanece pendente.
+
+### 2026-11-11, 22:34 BRT — Medição de pools: preparação e regressões
+
+- Plano registrado antes dos testes. API original instalada localmente, preservando
+  PostgreSQL tmpfs/licença/pareamentos. Ao parar a API candidata, contagem de
+  offline_sync_auth caiu a0; a medição não inclui o observador no banco postgres.
+- Primeiro roteiro e01acf67 parou antes da amostra inicial: o marcador criado pelo
+  agente não seguia a allowlist do receptor. Não é falha de entrega da aplicação
+  nem evidência de vazamento. Nenhuma reconexão medida nessa tentativa.
+- Regressão Python verificou o contrato com receiver.MARKER: RED falhou no warm-up;
+  GREEN passou após usar o formato EVOSYNC existente. Limite de ciclos10..99.
+- TestDeviceStoreIsReusedAcrossSequentialReconnects cobre início+20reconexões.
+  RED com get retornando open() sem cache: reconnect1 criou outro store, exit1.
+  GREEN restaurando inicializador compartilhado: todos TestDeviceStore passaram, exit0.
+- Não houve mudança adicional no código da aplicação; inicializador já estava na
+  imagem f072697. Apenas teste de regressão e roteiro de medição foram adicionados.
+- A primeira troca confirmou licença ativa e ambos os dispositivos autenticados.
+  Próximo passo: repetir a referência com marcadores válidos, depois candidata.
