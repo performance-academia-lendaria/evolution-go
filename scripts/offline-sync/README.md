@@ -178,6 +178,30 @@ Esse teste usa `/instance/reconnect`, não injeta falha de rede nem valida duas 
 
 ## Mídia e duração contínua
 
+O modo padrão continua estrito e para em qualquer queda. Para o critério autorizado
+pelo Tuan (duas horas, contando quedas naturais e exigindo recuperação até60s):
+
+```bash
+caffeinate -i python3 -u scripts/offline-sync/media_traffic.py --label after \
+  --duration-seconds 7200 --interval-seconds 300 --recovery-seconds 60
+```
+
+`caffeinate` evita suspensão ociosa no Mac; não participa da API. São seis envios
+por lote (texto/imagem/áudio nas duas vias), cerca de150envios em25lotes. O modo
+novo não provoca quedas nem chama reconexão manual. Conta Disconnected do webhook
+e perdas nas amostras de autenticação, deduplicando a mesma queda. Exige Connected,
+OfflineSyncCompleted e uma prova de texto recebida em até60s desde a queda observada,
+inclusive quando o socket recupera entre amostras e quando ambos os números caem.
+Cada prova adicional usa ID de mensagem hash para conferir entrega, sem conteúdo.
+Contagens são reconciliadas com os logs de reinício ao final; panics reprovam.
+
+O relatório inclui quedas por dispositivo/hora, duração de recuperação, provas,
+erros de stream e tentativas interrompidas. Uma requisição sem ID reconhecido que
+falhar durante uma queda nova só é repetida depois da recuperação comprovada;
+esses casos ficam separados das mensagens aceitas e rastreadas. Checkpoints de
+estado e contagens são persistidos durante a execução. Falha em qualquer etapa ou
+limite para o teste, preserva sessões e exige consulta antes de outro contorno.
+
 ```sh
 python3 scripts/offline-sync/media_traffic.py --label before
 python3 scripts/offline-sync/media_traffic.py --label after --duration-seconds 7200 --interval-seconds 300

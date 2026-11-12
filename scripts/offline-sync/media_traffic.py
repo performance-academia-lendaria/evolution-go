@@ -17,6 +17,7 @@ import zlib
 
 import experiment
 import lab
+from recovery_monitor import RecoveryMonitor
 
 
 def fixtures():
@@ -35,7 +36,7 @@ def fixtures():
     return {"image": png, "audio": audio.getvalue()}
 
 
-def send(source, destination, kind, marker, files):
+def send(source, destination, kind, marker, files, timeout=60):
     # Recipient lookup and credentials stay in memory; output contains hashes only.
     info = lab.request("/instance/info/" + destination["id"], lab.admin_key()).get("data", {})
     user, separator, server = (info.get("jid") or "").partition("@")
@@ -49,7 +50,7 @@ def send(source, destination, kind, marker, files):
         payload.update(type=kind, url=base64.b64encode(files[kind]).decode(),
                        caption=marker if kind == "image" else "", filename="synthetic." + ("png" if kind == "image" else "wav"))
     started = time.time()
-    result = lab.request(path, source["token"], payload, timeout=60)
+    result = lab.request(path, source["token"], payload, timeout=timeout)
     identifier = result.get("data", {}).get("Info", {}).get("ID")
     if result.get("message") != "success" or not isinstance(identifier, str) or not identifier:
         raise lab.LabError("STOP: send was not acknowledged with an ID; response withheld.")
@@ -84,7 +85,9 @@ def save(report, json_path, markdown_path):
         lines.append("| %s | %s | %s | %s |" % (batch["batch"], *[
             "%s/2" % sum(row["delivered"] for row in batch["messages"] if row["kind"] == kind)
             for kind in ("text", "image", "audio")]))
-    for field in ("finished_utc", "elapsed_seconds", "authentication_samples", "stop_reason", "target_logs", "sender_logs"):
+    for field in ("recovery_seconds", "drop_counts", "recovered_drops", "drops", "interrupted_send_attempts",
+                  "recovery_probe_failures", "last_health_utc", "drops_per_hour",
+                  "finished_utc", "elapsed_seconds", "authentication_samples", "stop_reason", "target_logs", "sender_logs"):
         if field in report:
             lines += ["", "- " + field + ": " + json.dumps(report[field])]
     lab.private_file(markdown_path, "\n".join(lines) + "\n")
@@ -104,7 +107,8 @@ def run(args):
     report = {"run": run_id, "label": args.label, "started_utc": experiment.utc(), "status": "running",
               "image_id": lab.docker("container", "inspect", "--format", "{{.Image}}", lab.CONTAINERS[0]).stdout.strip(),
               "duration_seconds": args.duration_seconds, "interval_seconds": args.interval_seconds,
-              "authentication_samples": 0, "batches": []}
+              "authentication_samples": 0, "batches": [], "recovery_seconds": args.recovery_seconds,
+              "interrupted_send_attempts": 0}
     output = lab.STATE / "results"
     output.mkdir(exist_ok=True, mode=0o700)
     prefix = "media-" + args.label + "-" + run_id
@@ -112,7 +116,22 @@ def run(args):
     markdown_path = lab.ROOT / "docs" / "investigations" / ("2026-11-11-offline-sync-" + prefix + ".md")
     checkpoint = lambda: save(report, json_path, markdown_path)
 
+    monitor = None
+    if args.recovery_seconds:
+        if not all(experiment.authenticated(account) for account in accounts.values()):
+            raise lab.LabError("STOP: both test accounts must start authenticated.")
+
+        def probe(role, timeout):
+            other = "sender" if role == "target" else "target"
+            return send(accounts[other], accounts[role], "text",
+                        "EVOSYNC-%s-C99-after" % run_id, files, timeout=timeout)
+
+        monitor = RecoveryMonitor(accounts, report, checkpoint, probe, delivered, args.recovery_seconds)
+
     def check_auth():
+        if monitor is not None:
+            monitor.check()
+            return
         if not experiment.authenticated(target) or not experiment.authenticated(sender):
             raise lab.LabError("STOP: authentication lost; preserve sessions and ask Tuan before recovery.")
         report["authentication_samples"] += 1
@@ -130,10 +149,27 @@ def run(args):
                     for kind in ("text", "image", "audio"):
                         check_auth()
                         marker = "EVOSYNC-%s-C%02d-%s" % (run_id, batch["batch"], phase)
-                        row = send(source, destination, kind, marker, files)
+                        try:
+                            row = send(source, destination, kind, marker, files)
+                        except (lab.LabError, OSError):
+                            if monitor is None:
+                                raise
+                            drops_before = len(report["drops"])
+                            check_auth()
+                            if len(report["drops"]) == drops_before:
+                                raise
+                            # Retry only after a newly observed, proven recovery.
+                            # The failed request had no acknowledged ID to track.
+                            report["interrupted_send_attempts"] += 1
+                            checkpoint()
+                            row = send(source, destination, kind, marker, files)
                         batch["messages"].append(row)
                         checkpoint()
-                        if not experiment.wait_for(lambda: delivered(row), 30):
+                        def arrived():
+                            check_auth()
+                            return delivered(row)
+
+                        if not experiment.wait_for(arrived, 30):
                             raise lab.LabError("STOP: acknowledged synthetic message missing from webhook; preserve session.")
                         row["delivered"] = True
                         row["received_utc"] = experiment.utc(delivered(row)["received_utc"])
@@ -147,8 +183,12 @@ def run(args):
             time.sleep(min(2, max(0, next_batch - time.monotonic())))
         report["target_logs"] = experiment.log_counts(target, report["started_utc"])
         report["sender_logs"] = experiment.log_counts(sender, report["started_utc"])
-        if any(report[role][key] for role in ("target_logs", "sender_logs")
-               for key in ("automatic_restart", "process_handler_panics", "process_stream_errors")):
+        if monitor is not None:
+            monitor.finalize()
+            if report["target_logs"]["process_handler_panics"]:
+                raise lab.LabError("STOP: event handler panic during continuous traffic.")
+        elif any(report[role][key] for role in ("target_logs", "sender_logs")
+                 for key in ("automatic_restart", "process_handler_panics", "process_stream_errors")):
             raise lab.LabError("STOP: reconnect, panic or stream error during continuous traffic; inspect sanitized counts.")
         report["status"] = "pass"
     except (lab.LabError, OSError, ValueError, KeyboardInterrupt) as error:
@@ -158,6 +198,15 @@ def run(args):
     finally:
         report["elapsed_seconds"] = round(time.monotonic() - started, 3)
         report["finished_utc"] = experiment.utc()
+        if monitor is not None:
+            report["drops_per_hour"] = {role: round(count * 3600 / max(report["elapsed_seconds"], 1), 3)
+                                         for role, count in report.get("drop_counts", {}).items()}
+        if report["status"] != "pass":
+            for role, account in accounts.items():
+                try:
+                    report[role + "_logs"] = experiment.log_counts(account, report["started_utc"])
+                except lab.LabError:
+                    report["final_log_counts_unavailable"] = True
         checkpoint()
     print(json.dumps({"status": report["status"], "batches": len(report["batches"]),
                       "elapsed_seconds": report["elapsed_seconds"]}), flush=True)
@@ -169,6 +218,8 @@ def main():
     parser.add_argument("--label", choices=("before", "after"), required=True)
     parser.add_argument("--duration-seconds", type=int, default=0)
     parser.add_argument("--interval-seconds", type=int, default=300)
+    parser.add_argument("--recovery-seconds", type=int, choices=(0, 60), default=0,
+                        help="Explicitly allow natural drops only with reconnection, sync and inbound proof within60s.")
     args = parser.parse_args()
     if args.duration_seconds < 0 or args.interval_seconds < 1:
         parser.error("Duration must be nonnegative and interval positive.")

@@ -1085,3 +1085,20 @@ pelo Tuan; compatibilidade local não provará que o incidente de produção foi
 - Próximo passo: observador de eventos/estado e prova imediata após cada queda,
   testes de regressão incluindo queda muito breve não percebida na amostra de auth,
   falha em sync/entrega/timeout; revisão do Codex; execução longa.
+
+### 2026-11-11 — Roteiro de recuperação preparado, antes de iniciar2h
+
+- Novo modo explícito --recovery-seconds60; padrão estrito preservado. Observa
+  Disconnected/autenticação, exige Connected+Completed+prova recebida no limite,
+  conta quedas por papel e compara com restart logs. Sem reconexão manual/queda forçada.
+- Mensagens periódicas continuam texto/imagem/áudio nas duas vias,6/lote a cada300s.
+  Provas de recuperação extras e tentativas interrompidas têm contagens separadas.
+- Regressores temporais sem rede real: queda normal, queda entre amostras, ambos
+  os dispositivos, webhook atrasado/deduplicação, sync ausente, entrega ausente,
+  limite ultrapassado e divergência entre observador/logs.
+- RED recriando critério estrito anterior: recuperação normal lança authentication
+  lost, exit1. GREEN com modo novo:11testes Python passaram, exit0. Um caso de
+  evento atrasado que antecipava o início da queda falhou antes do ajuste e passou
+  depois; limite60s revalidado mesmo para queda previamente marcada recuperada.
+- Próximos passos: conferir smoke real6mensagens, commitar roteiro e rever com
+  CodexCLI gpt-6.1-sol high até limpo. Então iniciar7200s; ainda não iniciado.
