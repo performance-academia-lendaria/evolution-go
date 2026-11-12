@@ -2,6 +2,18 @@
 
 ## Ponto de retomada atual
 
+**Informação posterior à publicação:** Tuan confirmou que evoapi1 e evoapi3
+compartilham o banco em produção. A primeira inicialização do armazenamento novo
+migra o esquema comum; o canário isola somente o binário. Não foi consultado o
+banco nem lida connection string para confirmar essa informação.
+
+Antes de autorizar o deploy, acrescentar teste local de convivência simultânea
+da versão antiga e da nova no mesmo banco, com dispositivos de teste distintos.
+O teste existente da versão antiga no schema16 foi sequencial. Planejar janela
+da migração compartilhada, observar os dois serviços e manter rollback por imagem
+com schema16 e sessões atuais. Nenhum novo teste ou ação de produção executado
+em resposta a essa confirmação; são próximos passos de planejamento.
+
 **Passos1–4 concluídos: merge, versão/tag/release, imagem publicada e rollback prontos.**
 Sem deploy autorizado ou executado. Registro final pelo PR #3. Se este documento
 estiver na main após essa integração, a tarefa está encerrada; não repetir merge,
